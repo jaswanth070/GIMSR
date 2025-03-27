@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIMSIR Internship Rotation System</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jQuery via CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Alpine.js for UI interactions -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Custom styles -->
+    <style type="text/tailwindcss">
+        @layer components {
+            .phase-container {
+                @apply bg-white rounded-lg shadow-md p-4;
+            }
+            .phase-header-a {
+                @apply bg-blue-500 text-white rounded-t-lg p-3;
+            }
+            .phase-header-b {
+                @apply bg-green-500 text-white rounded-t-lg p-3;
+            }
+            .phase-header-c {
+                @apply bg-yellow-500 text-white rounded-t-lg p-3;
+            }
+            .phase-header-d {
+                @apply bg-purple-500 text-white rounded-t-lg p-3;
+            }
+            .student-item {
+                @apply flex items-center justify-between p-2 border-b border-gray-200 hover:bg-gray-50;
+            }
+            .student-item-moving {
+                @apply bg-yellow-50;
+            }
+            .badge {
+                @apply px-2 py-1 rounded-full text-xs font-medium;
+            }
+            .badge-a {
+                @apply bg-blue-100 text-blue-800;
+            }
+            .badge-b {
+                @apply bg-green-100 text-green-800;
+            }
+            .badge-c {
+                @apply bg-yellow-100 text-yellow-800;
+            }
+            .badge-d {
+                @apply bg-purple-100 text-purple-800;
+            }
+            .badge-completed {
+                @apply bg-gray-100 text-gray-800;
+            }
+            .rotation-arrow {
+                @apply text-gray-400 flex-shrink-0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                    <svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                    </svg>
+                    <h1 class="ml-2 text-xl font-bold text-gray-900">GIMSIR Internship Rotation System</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div>
+                        <label for="batch-select" class="block text-sm font-medium text-gray-700">Batch</label>
+                        <select id="batch-select" class="mt-1 block w-full pl-3 pr-10 py-1 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="batch1">Batch 1</option>
+                            <option value="batch2">Batch 2</option>
+                            <option value="batch3">Batch 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="week-select" class="block text-sm font-medium text-gray-700">Week</label>
+                        <select id="week-select" class="mt-1 block w-full pl-3 pr-10 py-1 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="1">Week 1</option>
+                            <option value="2">Week 2</option>
+                            <option value="3">Week 3</option>
+                            <option value="4">Week 4</option>
+                            <option value="5">Week 5</option>
+                            <option value="6">Week 6</option>
+                            <option value="7">Week 7</option>
+                            <option value="8">Week 8</option>
+                            <option value="9">Week 9</option>
+                            <option value="10">Week 10</option>
+                            <option value="11">Week 11</option>
+                            <option value="12">Week 12</option>
+                            <option value="13">Week 13</option>
+                        </select>
+                    </div>
+                    <button id="rotate-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Rotate Students
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <!-- Search Bar -->
+        <div class="mb-6">
+            <div class="max-w-md mx-auto">
+                <label for="search" class="sr-only">Search students</label>
+                <div class="relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    <input type="text" id="search" class="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2" placeholder="Search students by name or ID">
+                </div>
+            </div>
+        </div>
+
+        <!-- Rotation Diagram -->
+        <div class="mb-8 bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Rotation Flow</h2>
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="phase-box bg-blue-100 p-3 rounded-lg text-center mb-4 md:mb-0">
+                    <h3 class="font-medium text-blue-800">Phase A</h3>
+                    <p class="text-sm text-blue-600">Clinical Skills</p>
+                    <p id="phase-a-count" class="mt-1 text-sm font-medium">25 Students</p>
+                </div>
+                <div class="rotation-arrow hidden md:block">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </div>
+                <div class="phase-box bg-green-100 p-3 rounded-lg text-center mb-4 md:mb-0">
+                    <h3 class="font-medium text-green-800">Phase B</h3>
+                    <p class="text-sm text-green-600">Laboratory Practice</p>
+                    <p id="phase-b-count" class="mt-1 text-sm font-medium">25 Students</p>
+                </div>
+                <div class="rotation-arrow hidden md:block">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </div>
+                <div class="phase-box bg-yellow-100 p-3 rounded-lg text-center mb-4 md:mb-0">
+                    <h3 class="font-medium text-yellow-800">Phase C</h3>
+                    <p class="text-sm text-yellow-600">Research Methods</p>
+                    <p id="phase-c-count" class="mt-1 text-sm font-medium">25 Students</p>
+                </div>
+                <div class="rotation-arrow hidden md:block">
+                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                    </svg>
+                </div>
+                <div class="phase-box bg-purple-100 p-3 rounded-lg text-center">
+                    <h3 class="font-medium text-purple-800">Phase D</h3>
+                    <p class="text-sm text-purple-600">Community Health</p>
+                    <p id="phase-d-count" class="mt-1 text-sm font-medium">25 Students</p>
+                </div>
+            </div>
+            <div class="mt-4 text-center">
+                <p class="text-sm text-gray-500">Students rotate through all phases (13 weeks each)</p>
+                <p id="completed-count" class="mt-1 text-sm font-medium text-green-600">0 students completed all phases</p>
+            </div>
+        </div>
+
+        <!-- Phase Containers -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Phase A -->
+            <div class="phase-container">
+                <div class="phase-header-a">
+                    <h3 class="text-lg font-medium">Phase A: Clinical Skills</h3>
+                </div>
+                <div class="mt-2">
+                    <div class="student-list max-h-96 overflow-y-auto" id="phase-a-students">
+                        <!-- Students will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase B -->
+            <div class="phase-container">
+                <div class="phase-header-b">
+                    <h3 class="text-lg font-medium">Phase B: Laboratory Practice</h3>
+                </div>
+                <div class="mt-2">
+                    <div class="student-list max-h-96 overflow-y-auto" id="phase-b-students">
+                        <!-- Students will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase C -->
+            <div class="phase-container">
+                <div class="phase-header-c">
+                    <h3 class="text-lg font-medium">Phase C: Research Methods</h3>
+                </div>
+                <div class="mt-2">
+                    <div class="student-list max-h-96 overflow-y-auto" id="phase-c-students">
+                        <!-- Students will be inserted here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phase D -->
+            <div class="phase-container">
+                <div class="phase-header-d">
+                    <h3 class="text-lg font-medium">Phase D: Community Health</h3>
+                </div>
+                <div class="mt-2">
+                    <div class="student-list max-h-96 overflow-y-auto" id="phase-d-students">
+                        <!-- Students will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completed Students -->
+        <div class="mt-6">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="bg-gray-700 text-white p-3">
+                    <h3 class="text-lg font-medium">Completed Students</h3>
+                </div>
+                <div class="p-4">
+                    <div class="student-list max-h-48 overflow-y-auto" id="completed-students">
+                        <!-- Completed students will be inserted here -->
+                        <div class="text-center text-gray-500 py-4" id="no-completed-message">
+                            No students have completed all phases yet
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        $(document).ready(function() {
+            // Generate dummy student data
+            const students = [];
+            const phases = ['A', 'B', 'C', 'D'];
+            const phaseNames = {
+                'A': 'Clinical Skills',
+                'B': 'Laboratory Practice',
+                'C': 'Research Methods',
+                'D': 'Community Health'
+            };
+            const firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'James', 'Emma', 'Robert', 'Olivia', 'William', 'Sophia', 'Joseph', 'Ava', 'Thomas', 'Isabella', 'Charles', 'Mia', 'Daniel', 'Charlotte'];
+            const lastNames = ['Smith', 'Johnson', 'Williams', 'Jones', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson'];
+            
+            // Create 100 students, 25 in each phase
+            for (let i = 0; i < 100; i++) {
+                const phaseIndex = Math.floor(i / 25);
+                const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+                
+                students.push({
+                    id: 'STU' + (1000 + i),
+                    name: firstName + ' ' + lastName,
+                    currentPhase: phases[phaseIndex],
+                    completedPhases: [],
+                    status: 'In Progress',
+                    weekInPhase: 1
+                });
+            }
+            
+            // Function to render a student item
+            function renderStudentItem(student) {
+                const phaseClass = student.status === 'Completed' ? 'badge-completed' : `badge-${student.currentPhase.toLowerCase()}`;
+                const phaseText = student.status === 'Completed' ? 'Completed' : `Phase ${student.currentPhase}`;
+                
+                return `
+                    <div class="student-item" data-id="${student.id}">
+                        <div>
+                            <div class="font-medium">${student.name}</div>
+                            <div class="text-xs text-gray-500">${student.id}</div>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-xs text-gray-500 mr-2">Week ${student.weekInPhase}/13</span>
+                            <span class="badge ${phaseClass}">${phaseText}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Function to render students by phase
+            function renderStudentsByPhase() {
+                // Clear existing students
+                $('#phase-a-students, #phase-b-students, #phase-c-students, #phase-d-students, #completed-students').empty();
+                
+                // Group students by phase
+                const studentsByPhase = {
+                    'A': [],
+                    'B': [],
+                    'C': [],
+                    'D': [],
+                    'Completed': []
+                };
+                
+                students.forEach(student => {
+                    if (student.status === 'Completed') {
+                        studentsByPhase['Completed'].push(student);
+                    } else {
+                        studentsByPhase[student.currentPhase].push(student);
+                    }
+                });
+                
+                // Render students in each phase
+                studentsByPhase['A'].forEach(student => {
+                    $('#phase-a-students').append(renderStudentItem(student));
+                });
+                
+                studentsByPhase['B'].forEach(student => {
+                    $('#phase-b-students').append(renderStudentItem(student));
+                });
+                
+                studentsByPhase['C'].forEach(student => {
+                    $('#phase-c-students').append(renderStudentItem(student));
+                });
+                
+                studentsByPhase['D'].forEach(student => {
+                    $('#phase-d-students').append(renderStudentItem(student));
+                });
+                
+                // Render completed students
+                if (studentsByPhase['Completed'].length > 0) {
+                    $('#no-completed-message').hide();
+                    studentsByPhase['Completed'].forEach(student => {
+                        $('#completed-students').append(renderStudentItem(student));
+                    });
+                } else {
+                    $('#no-completed-message').show();
+                }
+                
+                // Update counts
+                updatePhaseCounts();
+            }
+            
+            // Function to update phase counts
+            function updatePhaseCounts() {
+                const phaseCounts = {
+                    'A': 0,
+                    'B': 0,
+                    'C': 0,
+                    'D': 0,
+                    'Completed': 0
+                };
+                
+                students.forEach(student => {
+                    if (student.status === 'Completed') {
+                        phaseCounts['Completed']++;
+                    } else {
+                        phaseCounts[student.currentPhase]++;
+                    }
+                });
+                
+                // Update the phase counts
+                $('#phase-a-count').text(`${phaseCounts['A']} Students`);
+                $('#phase-b-count').text(`${phaseCounts['B']} Students`);
+                $('#phase-c-count').text(`${phaseCounts['C']} Students`);
+                $('#phase-d-count').text(`${phaseCounts['D']} Students`);
+                
+                // Update completed count
+                $('#completed-count').text(`${phaseCounts['Completed']} students completed all phases`);
+            }
+            
+            // Initial render
+            renderStudentsByPhase();
+            
+            // Handle rotation button click
+            $('#rotate-btn').click(function() {
+                // Add animation class to all student items
+                $('.student-item').addClass('student-item-moving');
+                
+                setTimeout(function() {
+                    // Rotate students to next phase
+                    students.forEach(student => {
+                        if (student.status !== 'Completed') {
+                            // Increment week in phase
+                            student.weekInPhase++;
+                            
+                            // If completed 13 weeks in a phase, move to next phase
+                            if (student.weekInPhase > 13) {
+                                // Add current phase to completed phases
+                                if (!student.completedPhases.includes(student.currentPhase)) {
+                                    student.completedPhases.push(student.currentPhase);
+                                }
+                                
+                                // Move to next phase
+                                const phases = ['A', 'B', 'C', 'D'];
+                                const currentIndex = phases.indexOf(student.currentPhase);
+                                const nextIndex = (currentIndex + 1) % phases.length;
+                                
+                                // If we've completed a full cycle
+                                if (nextIndex === 0 && student.completedPhases.length >= phases.length) {
+                                    student.status = 'Completed';
+                                } else {
+                                    student.currentPhase = phases[nextIndex];
+                                    student.weekInPhase = 1;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Update the week selector
+                    const currentWeek = parseInt($('#week-select').val());
+                    const nextWeek = currentWeek < 13 ? currentWeek + 1 : 1;
+                    $('#week-select').val(nextWeek);
+                    
+                    // Re-render the students
+                    renderStudentsByPhase();
+                    
+                    // Remove animation class
+                    $('.student-item').removeClass('student-item-moving');
+                }, 300);
+            });
+            
+            // Handle search input
+            $('#search').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                
+                if (searchTerm.trim() === '') {
+                    // Show all students
+                    $('.student-item').show();
+                } else {
+                    // Hide all students first
+                    $('.student-item').hide();
+                    
+                    // Show only matching students
+                    students.forEach(student => {
+                        if (student.name.toLowerCase().includes(searchTerm) || 
+                            student.id.toLowerCase().includes(searchTerm)) {
+                            $(`.student-item[data-id="${student.id}"]`).show();
+                        }
+                    });
+                }
+            });
+            
+            // Handle batch selection change
+            $('#batch-select').change(function() {
+                // In a real application, this would load different student data
+                // For this demo, we'll just reset the current batch
+                resetStudentData();
+                renderStudentsByPhase();
+            });
+            
+            // Handle week selection change
+            $('#week-select').change(function() {
+                // In a real application, this would show the state at a specific week
+                // For this demo, we'll just simulate rotations based on the week number
+                resetStudentData();
+                
+                const selectedWeek = parseInt($(this).val());
+                
+                // Apply weeks
+                students.forEach(student => {
+                    let remainingWeeks = selectedWeek - 1;
+                    let phaseIndex = phases.indexOf(student.currentPhase);
+                    
+                    while (remainingWeeks > 0) {
+                        // If we have enough weeks to complete the current phase
+                        if (remainingWeeks >= 13) {
+                            // Complete this phase
+                            student.completedPhases.push(student.currentPhase);
+                            
+                            // Move to next phase
+                            phaseIndex = (phaseIndex + 1) % phases.length;
+                            
+                            // If we've completed a full cycle
+                            if (phaseIndex === 0 && student.completedPhases.length >= phases.length) {
+                                student.status = 'Completed';
+                                break;
+                            } else {
+                                student.currentPhase = phases[phaseIndex];
+                            }
+                            
+                            remainingWeeks -= 13;
+                        } else {
+                            // Partial phase completion
+                            student.weekInPhase = remainingWeeks + 1;
+                            break;
+                        }
+                    }
+                });
+                
+                renderStudentsByPhase();
+            });
+            
+            // Function to reset student data to initial state
+            function resetStudentData() {
+                students.forEach((student, index) => {
+                    const phaseIndex = Math.floor(index / 25);
+                    student.currentPhase = phases[phaseIndex];
+                    student.completedPhases = [];
+                    student.status = 'In Progress';
+                    student.weekInPhase = 1;
+                });
+            }
+        });
+    </script>
+</body>
+</html>

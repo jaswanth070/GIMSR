@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIMSIR Internship Rotation System</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jQuery via CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Alpine.js for UI interactions -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Custom styles -->
+    <style type="text/tailwindcss">
+        @layer components {
+            .phase-card {
+                @apply bg-white rounded-lg shadow-md transition-all duration-300 hover:shadow-lg;
+            }
+            .phase-header-a {
+                @apply bg-blue-500 text-white;
+            }
+            .phase-header-b {
+                @apply bg-green-500 text-white;
+            }
+            .phase-header-c {
+                @apply bg-yellow-500 text-white;
+            }
+            .phase-header-d {
+                @apply bg-purple-500 text-white;
+            }
+            .phase-badge {
+                @apply px-3 py-1 rounded-full text-xs font-medium;
+            }
+            .phase-a {
+                @apply bg-blue-100 text-blue-800 border border-blue-200;
+            }
+            .phase-b {
+                @apply bg-green-100 text-green-800 border border-green-200;
+            }
+            .phase-c {
+                @apply bg-yellow-100 text-yellow-800 border border-yellow-200;
+            }
+            .phase-d {
+                @apply bg-purple-100 text-purple-800 border border-purple-200;
+            }
+            .completed {
+                @apply bg-gray-100 text-gray-800 border border-gray-200;
+            }
+            .student-card {
+                @apply bg-white rounded-lg border p-4 transition-all duration-300 hover:shadow-md;
+            }
+            .student-card-moving {
+                @apply animate-pulse bg-gray-50;
+            }
+            .progress-step {
+                @apply w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium border;
+            }
+            .progress-step-active {
+                @apply bg-blue-600 text-white border-blue-600;
+            }
+            .progress-step-completed {
+                @apply bg-green-600 text-white border-green-600;
+            }
+            .progress-step-inactive {
+                @apply bg-white text-gray-400 border-gray-300;
+            }
+            .progress-line {
+                @apply flex-1 h-0.5 bg-gray-200;
+            }
+            .progress-line-active {
+                @apply bg-blue-600;
+            }
+            .tab-active {
+                @apply border-b-2 border-blue-500 text-blue-600;
+            }
+            .tab-inactive {
+                @apply text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 border-transparent;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="{ activeTab: 'overview' }">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                        <h1 class="ml-2 text-xl font-bold text-gray-900">GIMSIR Internship Rotation System</h1>
+                    </div>
+                </div>
+                <nav class="hidden md:flex space-x-8 items-center">
+                    <a href="#" @click.prevent="activeTab = 'overview'" :class="activeTab === 'overview' ? 'text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-900 font-medium'">Overview</a>
+                    <a href="#" @click.prevent="activeTab = 'phases'" :class="activeTab === 'phases' ? 'text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-900 font-medium'">Phases</a>
+                    <a href="#" @click.prevent="activeTab = 'students'" :class="activeTab === 'students' ? 'text-blue-600 font-medium' : 'text-gray-500 hover:text-gray-900 font-medium'">Students</a>
+                </nav>
+                <div class="md:hidden flex items-center">
+                    <button type="button" class="text-gray-500 hover:text-gray-900 focus:outline-none">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Controls -->
+        <div class="bg-white shadow rounded-lg p-6 mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+                    <div>
+                        <label for="batch-select" class="block text-sm font-medium text-gray-700">Select Batch</label>
+                        <select id="batch-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="batch1">Batch 1</option>
+                            <option value="batch2">Batch 2</option>
+                            <option value="batch3">Batch 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="week-select" class="block text-sm font-medium text-gray-700">Current Week</label>
+                        <select id="week-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="1">Week 1</option>
+                            <option value="2">Week 2</option>
+                            <option value="3">Week 3</option>
+                            <option value="4">Week 4</option>
+                            <option value="5">Week 5</option>
+                            <option value="6">Week 6</option>
+                            <option value="7">Week 7</option>
+                            <option value="8">Week 8</option>
+                            <option value="9">Week 9</option>
+                            <option value="10">Week 10</option>
+                            <option value="11">Week 11</option>
+                            <option value="12">Week 12</option>
+                            <option value="13">Week 13</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <button id="rotate-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Rotate to Next Phase
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overview Tab -->
+        <div x-show="activeTab === 'overview'" class="space-y-8">
+            <!-- Dashboard Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Phase A</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="phase-a-count" class="phase-badge phase-a">25 Students</span>
+                        <div class="text-3xl font-bold text-blue-500" id="phase-a-percentage">25%</div>
+                    </div>
+                </div>
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Phase B</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="phase-b-count" class="phase-badge phase-b">25 Students</span>
+                        <div class="text-3xl font-bold text-green-500" id="phase-b-percentage">25%</div>
+                    </div>
+                </div>
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Phase C</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="phase-c-count" class="phase-badge phase-c">25 Students</span>
+                        <div class="text-3xl font-bold text-yellow-500" id="phase-c-percentage">25%</div>
+                    </div>
+                </div>
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Phase D</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="phase-d-count" class="phase-badge phase-d">25 Students</span>
+                        <div class="text-3xl font-bold text-purple-500" id="phase-d-percentage">25%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Chart -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Rotation Progress</h3>
+                <div class="w-full h-8 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-blue-600 text-xs font-medium text-blue-100 text-center p-1 leading-none rounded-full" style="width: 0%">
+                        0%
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-between text-sm text-gray-600">
+                    <div>Week 1</div>
+                    <div>Week 13</div>
+                </div>
+            </div>
+
+            <!-- Completion Status -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Completion Status</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <span>Completed Students</span>
+                    <span id="completed-count" class="font-medium">0/100</span>
+                </div>
+                <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="completion-bar" class="h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phases Tab -->
+        <div x-show="activeTab === 'phases'" class="space-y-8">
+            <!-- Phase Filter -->
+            <div class="bg-white shadow rounded-lg p-4">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8" x-data="{ currentPhase: 'all' }">
+                        <a href="#" @click.prevent="currentPhase = 'all'" :class="currentPhase === 'all' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            All Phases
+                        </a>
+                        <a href="#" @click.prevent="currentPhase = 'a'" :class="currentPhase === 'a' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            Phase A
+                        </a>
+                        <a href="#" @click.prevent="currentPhase = 'b'" :class="currentPhase === 'b' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            Phase B
+                        </a>
+                        <a href="#" @click.prevent="currentPhase = 'c'" :class="currentPhase === 'c' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            Phase C
+                        </a>
+                        <a href="#" @click.prevent="currentPhase = 'd'" :class="currentPhase === 'd' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            Phase D
+                        </a>
+                        <a href="#" @click.prevent="currentPhase = 'completed'" :class="currentPhase === 'completed' ? 'tab-active' : 'tab-inactive'" class="whitespace-nowrap py-4 px-1 font-medium text-sm">
+                            Completed
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Phase Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" x-data="{ currentPhase: 'all' }">
+                <!-- Phase A -->
+                <div class="phase-card" x-show="currentPhase === 'all' || currentPhase === 'a'">
+                    <div class="phase-header-a rounded-t-lg p-4">
+                        <h3 class="text-lg font-medium">Phase A</h3>
+                        <p class="text-sm opacity-80">Clinical Skills</p>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span id="phase-a-count-card" class="phase-badge phase-a">25 Students</span>
+                            <span class="text-sm text-gray-500">13 Weeks</span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto" id="phase-a-students">
+                            <!-- Students will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase B -->
+                <div class="phase-card" x-show="currentPhase === 'all' || currentPhase === 'b'">
+                    <div class="phase-header-b rounded-t-lg p-4">
+                        <h3 class="text-lg font-medium">Phase B</h3>
+                        <p class="text-sm opacity-80">Laboratory Practice</p>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span id="phase-b-count-card" class="phase-badge phase-b">25 Students</span>
+                            <span class="text-sm text-gray-500">13 Weeks</span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto" id="phase-b-students">
+                            <!-- Students will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase C -->
+                <div class="phase-card" x-show="currentPhase === 'all' || currentPhase === 'c'">
+                    <div class="phase-header-c rounded-t-lg p-4">
+                        <h3 class="text-lg font-medium">Phase C</h3>
+                        <p class="text-sm opacity-80">Research Methods</p>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span id="phase-c-count-card" class="phase-badge phase-c">25 Students</span>
+                            <span class="text-sm text-gray-500">13 Weeks</span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto" id="phase-c-students">
+                            <!-- Students will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase D -->
+                <div class="phase-card" x-show="currentPhase === 'all' || currentPhase === 'd'">
+                    <div class="phase-header-d rounded-t-lg p-4">
+                        <h3 class="text-lg font-medium">Phase D</h3>
+                        <p class="text-sm opacity-80">Community Health</p>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span id="phase-d-count-card" class="phase-badge phase-d">25 Students</span>
+                            <span class="text-sm text-gray-500">13 Weeks</span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto" id="phase-d-students">
+                            <!-- Students will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed -->
+                <div class="phase-card" x-show="currentPhase === 'all' || currentPhase === 'completed'">
+                    <div class="bg-gray-700 text-white rounded-t-lg p-4">
+                        <h3 class="text-lg font-medium">Completed</h3>
+                        <p class="text-sm opacity-80">All Phases Finished</p>
+                    </div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <span id="completed-count-card" class="phase-badge completed">0 Students</span>
+                            <span class="text-sm text-gray-500">Graduation Ready</span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto" id="completed-students">
+                            <!-- Students will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Students Tab -->
+        <div x-show="activeTab === 'students'" class="space-y-8">
+            <!-- Search and Filter -->
+            <div class="bg-white shadow rounded-lg p-6">
+                <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+                    <div class="flex-1">
+                        <label for="student-search" class="block text-sm font-medium text-gray-700">Search Students</label>
+                        <input type="text" id="student-search" placeholder="Search by ID or name..." class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                    </div>
+                    <div>
+                        <label for="phase-filter" class="block text-sm font-medium text-gray-700">Filter by Phase</label>
+                        <select id="phase-filter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="all">All Phases</option>
+                            <option value="A">Phase A</option>
+                            <option value="B">Phase B</option>
+                            <option value="C">Phase C</option>
+                            <option value="D">Phase D</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Student List -->
+            <div class="bg-white shadow rounded-lg overflow-hidden">
+                <div class="px-4 py-5 sm:px-6">
+                    <h2 class="text-lg font-medium text-gray-900">Student List</h2>
+                    <p class="mt-1 text-sm text-gray-500" id="student-count-info">Showing all 100 students</p>
+                </div>
+                <div class="border-t border-gray-200 px-4 py-5 sm:p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="student-list">
+                        <!-- Students will be inserted here -->
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6">
+                    <nav class="flex items-center justify-between">
+                        <div class="hidden sm:block">
+                            <p class="text-sm text-gray-700">
+                                Showing <span id="showing-start">1</span> to <span id="showing-end">20</span> of <span id="total-students">100</span> students
+                            </p>
+                        </div>
+                        <div class="flex-1 flex justify-between sm:justify-end">
+                            <button id="prev-page" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                Previous
+                            </button>
+                            <button id="next-page" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                Next
+                            </button>
+                        </div>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        $(document).ready(function() {
+            // Generate dummy student data
+            const students = [];
+            const phases = ['A', 'B', 'C', 'D'];
+            const phaseDescriptions = {
+                'A': 'Clinical Skills',
+                'B': 'Laboratory Practice',
+                'C': 'Research Methods',
+                'D': 'Community Health'
+            };
+            const firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'James', 'Emma', 'Robert', 'Olivia', 'William', 'Sophia', 'Joseph', 'Ava', 'Thomas', 'Isabella', 'Charles', 'Mia', 'Daniel', 'Charlotte', 'Matthew', 'Amelia', 'Anthony', 'Harper', 'Evelyn', 'Mark'];
+            const lastNames = ['Smith', 'Johnson', 'Williams', 'Jones', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Rodriguez', 'Lewis', 'Lee', 'Walker', 'Hall'];
+            
+            // Create 100 students, 25 in each phase
+            for (let i = 0; i < 100; i++) {
+                const phaseIndex = Math.floor(i / 25);
+                const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+                
+                students.push({
+                    id: 'STU' + (1000 + i),
+                    name: firstName + ' ' + lastName,
+                    currentPhase: phases[phaseIndex],
+                    completedPhases: [],
+                    status: 'In Progress',
+                    weekInPhase: 1
+                });
+            }
+            
+            // Function to render the progress tracker
+            function renderProgressTracker(student) {
+                const phases = ['A', 'B', 'C', 'D'];
+                const currentPhaseIndex = phases.indexOf(student.currentPhase);
+                
+                let html = '<div class="flex items-center">';
+                
+                phases.forEach((phase, index) => {
+                    // Determine step class
+                    let stepClass = 'progress-step-inactive';
+                    if (student.completedPhases.includes(phase)) {
+                        stepClass = 'progress-step-completed';
+                    } else if (phase === student.currentPhase) {
+                        stepClass = 'progress-step-active';
+                    }
+                    
+                    // Add step
+                    html += `<div class="progress-step ${stepClass}">${phase}</div>`;
+                    
+                    // Add connecting line (except after the last step)
+                    if (index < phases.length - 1) {
+                        let lineClass = 'progress-line';
+                        if (index < currentPhaseIndex || student.completedPhases.includes(phase)) {
+                            lineClass += ' progress-line-active';
+                        }
+                        html += `<div class="${lineClass}"></div>`;
+                    }
+                });
+                
+                html += '</div>';
+                return html;
+            }
+            
+            // Function to render a student card
+            function renderStudentCard(student) {
+                const phaseClass = student.status === 'Completed' ? 'completed' : `phase-${student.currentPhase.toLowerCase()}`;
+                const phaseText = student.status === 'Completed' ? 'Completed' : `Phase ${student.currentPhase}`;
+                const phaseDescription = student.status === 'Completed' ? 'All Phases Finished' : phaseDescriptions[student.currentPhase];
+                
+                return `
+                    <div class="student-card border-l-4 border-l-${student.status === 'Completed' ? 'gray' : student.currentPhase === 'A' ? 'blue' : student.currentPhase === 'B' ? 'green' : student.currentPhase === 'C' ? 'yellow' : 'purple'}-500" data-id="${student.id}" data-phase="${student.currentPhase}" data-status="${student.status}">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-medium text-gray-900">${student.name}</h4>
+                                <p class="text-sm text-gray-500">${student.id}</p>
+                            </div>
+                            <span class="phase-badge ${phaseClass}">${phaseText}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3">${phaseDescription}</p>
+                        ${renderProgressTracker(student)}
+                        <div class="mt-3 flex justify-between items-center">
+                            <span class="text-xs text-gray-500">Week ${student.weekInPhase}/13</span>
+                            <span class="text-xs font-medium ${student.status === 'Completed' ? 'text-green-600' : 'text-blue-600'}">
+                                ${student.status === 'Completed' ? 'Completed' : 'In Progress'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Function to render students by phase
+            function renderStudentsByPhase() {
+                // Clear existing students
+                $('#phase-a-students, #phase-b-students, #phase-c-students, #phase-d-students, #completed-students').empty();
+                
+                // Group students by phase
+                const studentsByPhase = {
+                    'A': [],
+                    'B': [],
+                    'C': [],
+                    'D': [],
+                    'Completed': []
+                };
+                
+                students.forEach(student => {
+                    if (student.status === 'Completed') {
+                        studentsByPhase['Completed'].push(student);
+                    } else {
+                        studentsByPhase[student.currentPhase].push(student);
+                    }
+                });
+                
+                // Render students in each phase
+                studentsByPhase['A'].forEach(student => {
+                    $('#phase-a-students').append(renderStudentCard(student));
+                });
+                
+                studentsByPhase['B'].forEach(student => {
+                    $('#phase-b-students').append(renderStudentCard(student));
+                });
+                
+                studentsByPhase['C'].forEach(student => {
+                    $('#phase-c-students').append(renderStudentCard(student));
+                });
+                
+                studentsByPhase['D'].forEach(student => {
+                    $('#phase-d-students').append(renderStudentCard(student));
+                });
+                
+                studentsByPhase['Completed'].forEach(student => {
+                    $('#completed-students').append(renderStudentCard(student));
+                });
+                
+                // Update counts
+                updatePhaseCounts();
+            }
+            
+            // Function to render student list with pagination
+            let currentPage = 1;
+            const studentsPerPage = 20;
+            
+            function renderStudentList(filteredStudents = null) {
+                const studentsToRender = filteredStudents || students;
+                const totalPages = Math.ceil(studentsToRender.length / studentsPerPage);
+                
+                // Calculate start and end indices for current page
+                const startIndex = (currentPage - 1) * studentsPerPage;
+                const endIndex = Math.min(startIndex + studentsPerPage, studentsToRender.length);
+                
+                // Clear existing students
+                $('#student-list').empty();
+                
+                // Render students for current page
+                for (let i = startIndex; i < endIndex; i++) {
+                    $('#student-list').append(renderStudentCard(studentsToRender[i]));
+                }
+                
+                // Update pagination info
+                $('#showing-start').text(startIndex + 1);
+                $('#showing-end').text(endIndex);
+                $('#total-students').text(studentsToRender.length);
+                $('#student-count-info').text(`Showing ${studentsToRender.length} of 100 students`);
+                
+                // Enable/disable pagination buttons
+                $('#prev-page').prop('disabled', currentPage === 1);
+                $('#next-page').prop('disabled', currentPage === totalPages);
+                
+                if (currentPage === 1) {
+                    $('#prev-page').addClass('opacity-50 cursor-not-allowed');
+                } else {
+                    $('#prev-page').removeClass('opacity-50 cursor-not-allowed');
+                }
+                
+                if (currentPage === totalPages || totalPages === 0) {
+                    $('#next-page').addClass('opacity-50 cursor-not-allowed');
+                } else {
+                    $('#next-page').removeClass('opacity-50 cursor-not-allowed');
+                }
+            }
+            
+            // Function to update phase counts
+            function updatePhaseCounts() {
+                const phaseCounts = {
+                    'A': 0,
+                    'B': 0,
+                    'C': 0,
+                    'D': 0,
+                    'Completed': 0
+                };
+                
+                students.forEach(student => {
+                    if (student.status === 'Completed') {
+                        phaseCounts['Completed']++;
+                    } else {
+                        phaseCounts[student.currentPhase]++;
+                    }
+                });
+                
+                // Update the phase badges
+                $('#phase-a-count, #phase-a-count-card').text(`${phaseCounts['A']} Students`);
+                $('#phase-b-count, #phase-b-count-card').text(`${phaseCounts['B']} Students`);
+                $('#phase-c-count, #phase-c-count-card').text(`${phaseCounts['C']} Students`);
+                $('#phase-d-count, #phase-d-count-card').text(`${phaseCounts['D']} Students`);
+                $('#completed-count-card').text(`${phaseCounts['Completed']} Students`);
+                
+                // Update percentages
+                $('#phase-a-percentage').text(`${Math.round(phaseCounts['A'] / students.length * 100)}%`);
+                $('#phase-b-percentage').text(`${Math.round(phaseCounts['B'] / students.length * 100)}%`);
+                $('#phase-c-percentage').text(`${Math.round(phaseCounts['C'] / students.length * 100)}%`);
+                $('#phase-d-percentage').text(`${Math.round(phaseCounts['D'] / students.length * 100)}%`);
+                
+                // Update completion stats
+                $('#completed-count').text(`${phaseCounts['Completed']}/${students.length}`);
+                const completionPercentage = Math.round(phaseCounts['Completed'] / students.length * 100);
+                $('#completion-bar').css('width', `${completionPercentage}%`);
+            }
+            
+            // Function to update progress bar based on current week
+            function updateProgressBar() {
+                const currentWeek = parseInt($('#week-select').val());
+                const progressPercentage = Math.round((currentWeek - 1) / 12 * 100);
+                $('#progress-bar').css('width', `${progressPercentage}%`);
+                $('#progress-bar').text(`${progressPercentage}%`);
+            }
+            
+            // Initial render
+            renderStudentsByPhase();
+            renderStudentList();
+            updateProgressBar();
+            
+            // Handle rotation button click
+            $('#rotate-btn').click(function() {
+                // Add animation class to all student cards
+                $('.student-card').addClass('student-card-moving');
+                
+                setTimeout(function() {
+                    // Rotate students to next phase
+                    students.forEach(student => {
+                        if (student.status !== 'Completed') {
+                            // Increment week in phase
+                            student.weekInPhase++;
+                            
+                            // If completed 13 weeks in a phase, move to next phase
+                            if (student.weekInPhase > 13) {
+                                // Add current phase to completed phases
+                                if (!student.completedPhases.includes(student.currentPhase)) {
+                                    student.completedPhases.push(student.currentPhase);
+                                }
+                                
+                                // Move to next phase
+                                const phases = ['A', 'B', 'C', 'D'];
+                                const currentIndex = phases.indexOf(student.currentPhase);
+                                const nextIndex = (currentIndex + 1) % phases.length;
+                                
+                                // If we've completed a full cycle
+                                if (nextIndex === 0 && student.completedPhases.length >= phases.length) {
+                                    student.status = 'Completed';
+                                } else {
+                                    student.currentPhase = phases[nextIndex];
+                                    student.weekInPhase = 1;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Update the week selector
+                    const currentWeek = parseInt($('#week-select').val());
+                    const nextWeek = currentWeek < 13 ? currentWeek + 1 : 1;
+                    $('#week-select').val(nextWeek);
+                    
+                    // Re-render the students
+                    renderStudentsByPhase();
+                    renderStudentList();
+                    
+                    // Update phase counts
+                    updatePhaseCounts();
+                    
+                    // Update progress bar
+                    updateProgressBar();
+                    
+                    // Remove animation class
+                    $('.student-card').removeClass('student-card-moving');
+                }, 500);
+            });
+            
+            // Handle search input
+            $('#student-search').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                currentPage = 1;
+                
+                if (searchTerm.trim() === '') {
+                    renderStudentList();
+                } else {
+                    const filteredStudents = students.filter(student => 
+                        student.id.toLowerCase().includes(searchTerm) || 
+                        student.name.toLowerCase().includes(searchTerm)
+                    );
+                    renderStudentList(filteredStudents);
+                }
+            });
+            
+            // Handle phase filter
+            $('#phase-filter').change(function() {
+                const selectedPhase = $(this).val();
+                currentPage = 1;
+                
+                if (selectedPhase === 'all') {
+                    renderStudentList();
+                } else if (selectedPhase === 'completed') {
+                    const filteredStudents = students.filter(student => student.status === 'Completed');
+                    renderStudentList(filteredStudents);
+                } else {
+                    const filteredStudents = students.filter(student => 
+                        student.currentPhase === selectedPhase && student.status !== 'Completed'
+                    );
+                    renderStudentList(filteredStudents);
+                }
+            });
+            
+            // Handle pagination
+            $('#prev-page').click(function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderStudentList();
+                }
+            });
+            
+            $('#next-page').click(function() {
+                const totalPages = Math.ceil(students.length / studentsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderStudentList();
+                }
+            });
+            
+            // Handle batch selection change
+            $('#batch-select').change(function() {
+                // In a real application, this would load different student data
+                // For this demo, we'll just reset the current batch
+                resetStudentData();
+                renderStudentsByPhase();
+                renderStudentList();
+                updatePhaseCounts();
+                updateProgressBar();
+            });
+            
+            // Handle week selection change
+            $('#week-select').change(function() {
+                // In a real application, this would show the state at a specific week
+                // For this demo, we'll just simulate rotations based on the week number
+                resetStudentData();
+                
+                const selectedWeek = parseInt($(this).val());
+                
+                // Apply weeks
+                students.forEach(student => {
+                    let remainingWeeks = selectedWeek - 1;
+                    let phaseIndex = phases.indexOf(student.currentPhase);
+                    
+                    while (remainingWeeks > 0) {
+                        // If we have enough weeks to complete the current phase
+                        if (remainingWeeks >= 13) {
+                            // Complete this phase
+                            student.completedPhases.push(student.currentPhase);
+                            
+                            // Move to next phase
+                            phaseIndex = (phaseIndex + 1) % phases.length;
+                            
+                            // If we've completed a full cycle
+                            if (phaseIndex === 0 && student.completedPhases.length >= phases.length) {
+                                student.status = 'Completed';
+                                break;
+                            } else {
+                                student.currentPhase = phases[phaseIndex];
+                            }
+                            
+                            remainingWeeks -= 13;
+                        } else {
+                            // Partial phase completion
+                            student.weekInPhase = remainingWeeks + 1;
+                            break;
+                        }
+                    }
+                });
+                
+                renderStudentsByPhase();
+                renderStudentList();
+                updatePhaseCounts();
+                updateProgressBar();
+            });
+            
+            // Function to reset student data to initial state
+            function resetStudentData() {
+                students.forEach((student, index) => {
+                    const phaseIndex = Math.floor(index / 25);
+                    student.currentPhase = phases[phaseIndex];
+                    student.completedPhases = [];
+                    student.status = 'In Progress';
+                    student.weekInPhase = 1;
+                });
+                currentPage = 1;
+            }
+        });
+    </script>
+</body>
+</html>
