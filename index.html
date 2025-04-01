@@ -6,13 +6,71 @@
     <title>Medical Internship Rotation Schedule</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-in': 'slideIn 0.5s ease-in-out',
+                        'scale-in': 'scaleIn 0.3s ease-in-out',
+                        'rotate-in': 'rotateIn 0.5s ease-in-out',
+                        'split-out': 'splitOut 1.5s ease-in-out',
+                        'merge-in': 'mergeIn 1.5s ease-in-out',
+                        'rotate-swap': 'rotateSwap 2s ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideIn: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        scaleIn: {
+                            '0%': { transform: 'scale(0.8)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' },
+                        },
+                        rotateIn: {
+                            '0%': { transform: 'rotate(-5deg) scale(0.9)', opacity: '0' },
+                            '100%': { transform: 'rotate(0) scale(1)', opacity: '1' },
+                        },
+                        splitOut: {
+                            '0%': { transform: 'translateX(0)' },
+                            '50%': { transform: 'translateX(var(--split-distance, 50px))' },
+                            '100%': { transform: 'translateX(var(--split-distance, 50px))' },
+                        },
+                        mergeIn: {
+                            '0%': { transform: 'translateX(var(--merge-distance, 50px))' },
+                            '50%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(0)' },
+                        },
+                        rotateSwap: {
+                            '0%': { transform: 'translateY(0)' },
+                            '25%': { transform: 'translateY(-30px)' },
+                            '50%': { transform: 'translateX(100px) translateY(-30px)' },
+                            '75%': { transform: 'translateX(100px) translateY(0)' },
+                            '100%': { transform: 'translateX(0) translateY(0)' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         .week-cell {
-            width: 40px;
+            width: 80px;
             height: 40px;
             text-align: center;
             border: 1px solid #ddd;
             font-size: 0.8rem;
+            transition: all 0.3s ease;
+            overflow: hidden;
         }
         .header-cell {
             background-color: #f0f0f0;
@@ -30,12 +88,14 @@
         
         .highlight {
             animation: pulse 1s infinite;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+            z-index: 10;
         }
         
         @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
         }
         
         .legend-item {
@@ -46,687 +106,1542 @@
             vertical-align: middle;
         }
 
-        .phase-header {
-            font-weight: bold;
-            background-color: #f0f0f0;
-            padding: 8px;
-            border-radius: 4px;
-            margin-bottom: 8px;
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 250px;
+        }
+
+        .team-split-animation {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .team-split-animation::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.3);
+            z-index: 1;
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.5s ease-out;
+        }
+
+        .team-split-animation.active::before {
+            transform: scaleX(1);
+        }
+
+        .team-merge-animation {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .team-merge-animation::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.3);
+            z-index: 1;
+            transform: scaleX(0);
+            transform-origin: right;
+            transition: transform 0.5s ease-out;
+        }
+
+        .team-merge-animation.active::after {
+            transform: scaleX(1);
+        }
+
+        .phase-transition {
+            transition: background-color 0.5s ease;
         }
 
         .schedule-container {
             overflow-x: auto;
             max-width: 100%;
+            position: relative;
         }
 
-        .tooltip {
+        .phase-marker {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.8);
+            top: 0;
+            height: 100%;
+            border-left: 2px dashed rgba(0, 0, 0, 0.2);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .phase-label {
+            position: absolute;
+            top: -20px;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
             color: white;
-            padding: 5px 10px;
+            padding: 2px 8px;
             border-radius: 4px;
             font-size: 12px;
-            z-index: 100;
-            pointer-events: none;
+        }
+
+        /* Animation for team splitting */
+        @keyframes splitTeam {
+            0% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(-10px); opacity: 0.5; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Animation for team merging */
+        @keyframes mergeTeam {
+            0% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(10px); opacity: 0.5; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        .split-animation {
+            animation: splitTeam 1s ease-in-out;
+        }
+
+        .merge-animation {
+            animation: mergeTeam 1s ease-in-out;
+        }
+
+        /* Select2 custom styling */
+        .select2-container--default .select2-selection--single {
+            height: 42px;
+            padding: 6px 12px;
+            border-radius: 0.375rem;
+            border-color: #e5e7eb;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 42px;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 28px;
+        }
+        
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #3b82f6;
+        }
+
+        /* Animation visualization styles */
+        .team-block {
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin: 10px;
+            position: relative;
+            transition: all 0.5s ease;
+        }
+
+        .team-block-small {
+            width: 80px;
+            height: 80px;
+            font-size: 0.9rem;
+        }
+
+        .team-block-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .team-block-count {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .team-block-small .team-block-count {
+            font-size: 1.2rem;
+        }
+
+        .animation-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            min-height: 300px;
+            position: relative;
+        }
+
+        .animation-arrow {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin: 0 10px;
+        }
+
+        .split-left {
+            --split-distance: -80px;
+            animation: splitOut 3s ease-in-out;
+        }
+
+        .split-right {
+            --split-distance: 80px;
+            animation: splitOut 3s ease-in-out;
+        }
+
+        .merge-left {
+            --merge-distance: -80px;
+            animation: mergeIn 3s ease-in-out;
+        }
+
+        .merge-right {
+            --merge-distance: 80px;
+            animation: mergeIn 3s ease-in-out;
+        }
+
+        .rotate-swap {
+            animation: rotateSwap 3s ease-in-out;
+        }
+
+        .animation-step {
             display: none;
+            width: 100%;
+        }
+
+        .animation-step.active {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .animation-controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .animation-title {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        /* Tab styling */
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .tab-button {
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active {
+            border-bottom: 2px solid #3b82f6;
+            color: #3b82f6;
+            font-weight: bold;
         }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-8">
-    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6">
-        <h1 class="text-3xl font-bold text-center mb-6">Medical Internship Rotation Schedule</h1>
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 animate-fade-in">
+        <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Medical Internship Rotation Schedule</h1>
         
-        <div class="flex flex-col md:flex-row gap-4 mb-6">
-            <div class="md:w-1/3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-slide-in" style="animation-delay: 0.1s">
+            <div>
                 <label for="batch-select" class="block text-lg font-medium mb-2">Select Batch:</label>
-                <select id="batch-select" class="w-full p-2 border rounded-md">
-                    <option value="A">Batch A (M → S → O → C)</option>
-                    <option value="B">Batch B (S → O → C → M)</option>
-                    <option value="C">Batch C (O → C → M → S)</option>
-                    <option value="D">Batch D (C → M → S → O)</option>
+                <select id="batch-select" class="w-full p-2 border rounded-md transition-all hover:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="A">Batch A (M → S → O → Misc → CM)</option>
+                    <option value="B">Batch B (S → O → Misc → CM → M)</option>
+                    <option value="C">Batch C (O → Misc → CM → M → S)</option>
+                    <option value="D">Batch D (Misc → CM → M → S → O)</option>
                 </select>
             </div>
             
-            <div class="md:w-1/3">
-                <label for="week-select" class="block text-lg font-medium mb-2">Current Week:</label>
+            <div>
+                <label for="date-select" class="block text-lg font-medium mb-2">Current Date:</label>
                 <div class="flex items-center">
-                    <button id="prev-week" class="px-4 py-2 bg-gray-200 rounded-l-md hover:bg-gray-300">&lt;</button>
-                    <input type="number" id="week-select" min="1" max="52" value="1" class="w-full p-2 border text-center">
-                    <button id="next-week" class="px-4 py-2 bg-gray-200 rounded-r-md hover:bg-gray-300">&gt;</button>
+                    <button id="prev-week" class="px-4 py-2 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors">&lt;</button>
+                    <input type="date" id="date-select" class="w-full p-2 border text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <button id="next-week" class="px-4 py-2 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors">&gt;</button>
                 </div>
             </div>
 
-            <div class="md:w-1/3">
+            <div>
                 <label for="phase-select" class="block text-lg font-medium mb-2">Jump to Phase:</label>
-                <select id="phase-select" class="w-full p-2 border rounded-md">
-                    <option value="1">Medicine (Weeks 1-12)</option>
-                    <option value="13">Surgery (Weeks 13-24)</option>
-                    <option value="25">OBGY (Weeks 25-36)</option>
-                    <option value="37">Community Medicine (Weeks 37-48)</option>
-                    <option value="49">Miscellaneous (Weeks 49-52)</option>
+                <select id="phase-select" class="w-full p-2 border rounded-md transition-all hover:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <option value="0">Medicine (Apr 1 - Jun 23, 2025)</option>
+                    <option value="1">Surgery (Jun 24 - Sep 15, 2025)</option>
+                    <option value="2">OBGY (Sep 16 - Dec 8, 2025)</option>
+                    <option value="3">Miscellaneous (Dec 9 - Jan 5, 2026)</option>
+                    <option value="4">Community Medicine (Jan 6 - Mar 30, 2026)</option>
                 </select>
             </div>
         </div>
         
-        <div class="flex justify-center gap-4 mb-6">
-            <button id="simulate-btn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Start Simulation</button>
-            <button id="stop-simulation" class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 hidden">Stop Simulation</button>
-            <button id="reset-btn" class="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">Reset</button>
-        </div>
-
-        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
-            <h2 class="text-xl font-bold mb-3">Current Status</h2>
-            <div id="current-phase-info" class="text-lg mb-2">Phase: <span class="font-bold">Medicine (Week 1 of 12)</span></div>
-            <div id="total-progress" class="text-lg">Overall Progress: <span class="font-bold">Week 1 of 52</span></div>
-        </div>
-        
-        <div class="overflow-x-auto mb-8">
-            <h2 class="text-xl font-bold mb-3">Current Week Schedule</h2>
-            <table id="current-week-table" class="w-full border-collapse">
-                <thead>
-                    <tr>
-                        <th class="border p-2 bg-gray-100">Subgroup</th>
-                        <th class="border p-2 bg-gray-100">Current Posting</th>
-                        <th class="border p-2 bg-gray-100">Department</th>
-                        <th class="border p-2 bg-gray-100">Duration</th>
-                        <th class="border p-2 bg-gray-100">Members</th>
-                    </tr>
-                </thead>
-                <tbody id="current-week-body">
-                    <!-- Will be populated by JavaScript -->
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="mb-8">
-            <h2 class="text-xl font-bold mb-3">Full Schedule Overview</h2>
-            <div class="flex mb-2">
-                <button id="view-all" class="px-4 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">View All Weeks</button>
-                <button id="view-medicine" class="px-4 py-2 bg-red-200 text-gray-800 hover:bg-red-300">Medicine</button>
-                <button id="view-surgery" class="px-4 py-2 bg-green-200 text-gray-800 hover:bg-green-300">Surgery</button>
-                <button id="view-obgy" class="px-4 py-2 bg-blue-200 text-gray-800 hover:bg-blue-300">OBGY</button>
-                <button id="view-community" class="px-4 py-2 bg-yellow-200 text-gray-800 hover:bg-yellow-300">Community</button>
-                <button id="view-misc" class="px-4 py-2 bg-purple-200 text-gray-800 rounded-r-md hover:bg-purple-300">Misc</button>
+        <!-- Tab Navigation -->
+        <div class="border-b mb-6 animate-slide-in" style="animation-delay: 0.15s">
+            <div class="flex">
+                <button class="tab-button active" data-tab="schedule-tab">Schedule</button>
+                <button class="tab-button" data-tab="search-tab">Search & Filter</button>
+                <button class="tab-button" data-tab="student-tab">Student Management</button>
+                <button class="tab-button" data-tab="transition-tab">Batch Transitions</button>
             </div>
-            <div class="schedule-container">
-                <div class="flex mb-4 overflow-x-auto">
-                    <div class="flex flex-col">
-                        <div class="week-cell batch-cell">Week</div>
-                        <div id="subgroups"></div>
+        </div>
+        
+        <!-- Schedule Tab Content -->
+        <div id="schedule-tab" class="tab-content active">
+            <div class="flex justify-center gap-4 mb-6 animate-slide-in" style="animation-delay: 0.2s">
+                <button id="simulate-btn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors transform hover:scale-105 active:scale-95">Start Simulation</button>
+                <button id="stop-simulation" class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors transform hover:scale-105 active:scale-95 hidden">Stop Simulation</button>
+                <button id="reset-btn" class="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors transform hover:scale-105 active:scale-95">Reset</button>
+                <button id="animate-transitions-btn" class="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors transform hover:scale-105 active:scale-95">Show Transitions</button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="lg:col-span-1 p-4 bg-blue-50 rounded-lg shadow-sm animate-scale-in" style="animation-delay: 0.3s">
+                    <h2 class="text-xl font-bold mb-3">Current Status</h2>
+                    <div id="current-phase-info" class="text-lg mb-2">Phase: <span class="font-bold">Medicine (Apr 1 - Apr 7, 2025)</span></div>
+                    <div id="total-progress" class="text-lg mb-2">Overall Progress: <span class="font-bold">Week 1 of 52</span></div>
+                    <div id="student-count" class="text-lg">Total Students: <span class="font-bold">110/136</span></div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 mt-3">
+                        <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 2%"></div>
                     </div>
-                    <div id="schedule-grid" class="flex">
-                        <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <div class="lg:col-span-2 overflow-x-auto animate-scale-in" style="animation-delay: 0.4s">
+                    <h2 class="text-xl font-bold mb-3">Current Week Schedule</h2>
+                    <table id="current-week-table" class="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="border p-2 bg-gray-100">Subgroup</th>
+                                <th class="border p-2 bg-gray-100">Current Posting</th>
+                                <th class="border p-2 bg-gray-100">Department</th>
+                                <th class="border p-2 bg-gray-100">Duration</th>
+                                <th class="border p-2 bg-gray-100">Members</th>
+                                <th class="border p-2 bg-gray-100">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="current-week-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="mb-8 animate-scale-in" style="animation-delay: 0.5s">
+                <h2 class="text-xl font-bold mb-3">Full Schedule Overview</h2>
+                <div class="flex mb-2 flex-wrap">
+                    <button id="view-all" class="px-4 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700 transition-colors">View All Weeks</button>
+                    <button id="view-medicine" class="px-4 py-2 bg-red-200 text-gray-800 hover:bg-red-300 transition-colors">Medicine</button>
+                    <button id="view-surgery" class="px-4 py-2 bg-green-200 text-gray-800 hover:bg-green-300 transition-colors">Surgery</button>
+                    <button id="view-obgy" class="px-4 py-2 bg-blue-200 text-gray-800 hover:bg-blue-300 transition-colors">OBGY</button>
+                    <button id="view-community" class="px-4 py-2 bg-yellow-200 text-gray-800 hover:bg-yellow-300 transition-colors">Community</button>
+                    <button id="view-misc" class="px-4 py-2 bg-purple-200 text-gray-800 rounded-r-md hover:bg-purple-300 transition-colors">Misc</button>
+                </div>
+                <div class="schedule-container">
+                    <div class="flex mb-4 overflow-x-auto relative">
+                        <div class="flex flex-col">
+                            <div class="week-cell batch-cell">Date</div>
+                            <div id="subgroups"></div>
+                        </div>
+                        <div id="schedule-grid" class="flex">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                        <!-- Phase markers will be added here -->
+                        <div id="phase-markers"></div>
+                    </div>
+                </div>
+                <div id="tooltip" class="tooltip"></div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 animate-rotate-in" style="animation-delay: 0.6s">
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">Medicine (12 Weeks)</h3>
+                    <div class="legend-item medicine"></div> Medicine
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Code</th>
+                            <th class="border p-1 text-sm">Subject</th>
+                            <th class="border p-1 text-sm">Duration</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">GM</td>
+                            <td class="border p-1 text-sm">General Medicine</td>
+                            <td class="border p-1 text-sm">6 weeks</td>
+                            <td class="border p-1 text-sm">17</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">PY</td>
+                            <td class="border p-1 text-sm">Psychiatry</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">6</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">CA</td>
+                            <td class="border p-1 text-sm">Casualty</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">6</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">EN</td>
+                            <td class="border p-1 text-sm">ENT</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">5</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">Surgery (12 Weeks)</h3>
+                    <div class="legend-item surgery"></div> Surgery
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Code</th>
+                            <th class="border p-1 text-sm">Subject</th>
+                            <th class="border p-1 text-sm">Duration</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">GS</td>
+                            <td class="border p-1 text-sm">General Surgery</td>
+                            <td class="border p-1 text-sm">6 weeks</td>
+                            <td class="border p-1 text-sm">17</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">AN</td>
+                            <td class="border p-1 text-sm">Anaesthesia</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">6</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">OR</td>
+                            <td class="border p-1 text-sm">Orthopedics</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">6</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">OP</td>
+                            <td class="border p-1 text-sm">Ophthalmology</td>
+                            <td class="border p-1 text-sm">2 weeks</td>
+                            <td class="border p-1 text-sm">5</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">OBGY (12 Weeks)</h3>
+                    <div class="legend-item obgy"></div> OBGY
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Code</th>
+                            <th class="border p-1 text-sm">Subject</th>
+                            <th class="border p-1 text-sm">Duration</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">OB</td>
+                            <td class="border p-1 text-sm">OBGY</td>
+                            <td class="border p-1 text-sm">6 weeks</td>
+                            <td class="border p-1 text-sm">17</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">PE</td>
+                            <td class="border p-1 text-sm">Paediatrics</td>
+                            <td class="border p-1 text-sm">3 weeks</td>
+                            <td class="border p-1 text-sm">8</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">RM</td>
+                            <td class="border p-1 text-sm">Respiratory Medicine</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">3</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">RA</td>
+                            <td class="border p-1 text-sm">Radiology</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">3</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">DE</td>
+                            <td class="border p-1 text-sm">Dermatology</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">3</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">Community Medicine (12 Weeks)</h3>
+                    <div class="legend-item community"></div> Community Medicine
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Code</th>
+                            <th class="border p-1 text-sm">Subject</th>
+                            <th class="border p-1 text-sm">Duration</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">CH</td>
+                            <td class="border p-1 text-sm">CHC</td>
+                            <td class="border p-1 text-sm">3 weeks</td>
+                            <td class="border p-1 text-sm">9</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">PH</td>
+                            <td class="border p-1 text-sm">PHC</td>
+                            <td class="border p-1 text-sm">3 weeks</td>
+                            <td class="border p-1 text-sm">8</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">UH</td>
+                            <td class="border p-1 text-sm">UHC</td>
+                            <td class="border p-1 text-sm">3 weeks</td>
+                            <td class="border p-1 text-sm">9</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">RH</td>
+                            <td class="border p-1 text-sm">RHC</td>
+                            <td class="border p-1 text-sm">3 weeks</td>
+                            <td class="border p-1 text-sm">8</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">Miscellaneous (4 Weeks)</h3>
+                    <div class="legend-item misc"></div> Miscellaneous
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Code</th>
+                            <th class="border p-1 text-sm">Subject</th>
+                            <th class="border p-1 text-sm">Duration</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">FP</td>
+                            <td class="border p-1 text-sm">Family Planning</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">9</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">LM</td>
+                            <td class="border p-1 text-sm">Lab Medicine</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">8</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">FM</td>
+                            <td class="border p-1 text-sm">Forensic Medicine</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">9</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">YO</td>
+                            <td class="border p-1 text-sm">Yoga</td>
+                            <td class="border p-1 text-sm">1 week</td>
+                            <td class="border p-1 text-sm">8</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="border rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 class="text-lg font-bold mb-2">Batch Information</h3>
+                    <table class="w-full mt-2">
+                        <tr>
+                            <th class="border p-1 text-sm">Batch</th>
+                            <th class="border p-1 text-sm">Rotation Sequence</th>
+                            <th class="border p-1 text-sm">Members</th>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">A</td>
+                            <td class="border p-1 text-sm">M → S → O → Misc → CM</td>
+                            <td class="border p-1 text-sm">34</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">B</td>
+                            <td class="border p-1 text-sm">S → O → Misc → CM → M</td>
+                            <td class="border p-1 text-sm">34</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">C</td>
+                            <td class="border p-1 text-sm">O → Misc → CM → M → S</td>
+                            <td class="border p-1 text-sm">34</td>
+                        </tr>
+                        <tr>
+                            <td class="border p-1 text-sm">D</td>
+                            <td class="border p-1 text-sm">Misc → CM → M → S → O</td>
+                            <td class="border p-1 text-sm">34</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Search & Filter Tab Content -->
+        <div id="search-tab" class="tab-content">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="border rounded-md p-4 shadow-sm">
+                    <h3 class="text-lg font-bold mb-3">Search by Student</h3>
+                    <div class="mb-4">
+                        <label for="student-search" class="block text-sm font-medium mb-1">Student Name or ID:</label>
+                        <select id="student-search" class="w-full student-select">
+                            <option value="">Select a student</option>
+                            <!-- Will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="batch-filter" class="block text-sm font-medium mb-1">Filter by Batch:</label>
+                        <select id="batch-filter" class="w-full p-2 border rounded-md">
+                            <option value="all">All Batches</option>
+                            <option value="A">Batch A</option>
+                            <option value="B">Batch B</option>
+                            <option value="C">Batch C</option>
+                            <option value="D">Batch D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button id="search-student-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">Search</button>
+                        <button id="clear-search-btn" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors ml-2">Clear</button>
+                    </div>
+                </div>
+                
+                <div class="border rounded-md p-4 shadow-sm">
+                    <h3 class="text-lg font-bold mb-3">Filter by Subject</h3>
+                    <div class="mb-4">
+                        <label for="subject-filter" class="block text-sm font-medium mb-1">Select Subject:</label>
+                        <select id="subject-filter" class="w-full p-2 border rounded-md">
+                            <option value="all">All Subjects</option>
+                            <optgroup label="Medicine">
+                                <option value="GM">General Medicine (GM)</option>
+                                <option value="PY">Psychiatry (PY)</option>
+                                <option value="CA">Casualty (CA)</option>
+                                <option value="EN">ENT (EN)</option>
+                            </optgroup>
+                            <optgroup label="Surgery">
+                                <option value="GS">General Surgery (GS)</option>
+                                <option value="AN">Anaesthesia (AN)</option>
+                                <option value="OR">Orthopedics (OR)</option>
+                                <option value="OP">Ophthalmology (OP)</option>
+                            </optgroup>
+                            <optgroup label="OBGY">
+                                <option value="OB">OBGY (OB)</option>
+                                <option value="PE">Paediatrics (PE)</option>
+                                <option value="RM">Respiratory Medicine (RM)</option>
+                                <option value="RA">Radiology (RA)</option>
+                                <option value="DE">Dermatology (DE)</option>
+                            </optgroup>
+                            <optgroup label="Community Medicine">
+                                <option value="CH">CHC (CH)</option>
+                                <option value="PH">PHC (PH)</option>
+                                <option value="UH">UHC (UH)</option>
+                                <option value="RH">RHC (RH)</option>
+                            </optgroup>
+                            <optgroup label="Miscellaneous">
+                                <option value="FP">Family Planning (FP)</option>
+                                <option value="LM">Lab Medicine (LM)</option>
+                                <option value="FM">Forensic Medicine (FM)</option>
+                                <option value="YO">Yoga (YO)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="date-range-filter" class="block text-sm font-medium mb-1">Date Range:</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="date-from" class="p-2 border rounded-md" placeholder="From">
+                            <input type="date" id="date-to" class="p-2 border rounded-md" placeholder="To">
+                        </div>
+                    </div>
+                    <div>
+                        <button id="apply-filter-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">Apply Filters</button>
+                        <button id="clear-filter-btn" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors ml-2">Clear Filters</button>
                     </div>
                 </div>
             </div>
-            <div id="tooltip" class="tooltip"></div>
+            
+            <div class="border rounded-md p-4 shadow-sm mb-6">
+                <h3 class="text-lg font-bold mb-3">Search Results</h3>
+                <div id="search-results" class="overflow-x-auto">
+                    <p class="text-gray-500 italic">Use the search and filter options above to see results.</p>
+                </div>
+            </div>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">Medicine (12 Weeks)</h3>
-                <div class="legend-item medicine"></div> Medicine
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Code</th>
-                        <th class="border p-1 text-sm">Subject</th>
-                        <th class="border p-1 text-sm">Duration</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">GM</td>
-                        <td class="border p-1 text-sm">General Medicine</td>
-                        <td class="border p-1 text-sm">6 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">PY</td>
-                        <td class="border p-1 text-sm">Psychiatry</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">CA</td>
-                        <td class="border p-1 text-sm">Casualty</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">EN</td>
-                        <td class="border p-1 text-sm">ENT</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                </table>
+        <!-- Student Management Tab Content -->
+        <div id="student-tab" class="tab-content">
+            <div class="flex justify-between mb-6">
+                <h3 class="text-xl font-bold">Student Management</h3>
+                <button id="add-student-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">Add New Student</button>
             </div>
             
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">Surgery (12 Weeks)</h3>
-                <div class="legend-item surgery"></div> Surgery
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Code</th>
-                        <th class="border p-1 text-sm">Subject</th>
-                        <th class="border p-1 text-sm">Duration</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">GS</td>
-                        <td class="border p-1 text-sm">General Surgery</td>
-                        <td class="border p-1 text-sm">6 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">AN</td>
-                        <td class="border p-1 text-sm">Anaesthesia</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">OR</td>
-                        <td class="border p-1 text-sm">Orthopedics</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">OP</td>
-                        <td class="border p-1 text-sm">Ophthalmology</td>
-                        <td class="border p-1 text-sm">2 weeks</td>
-                    </tr>
-                </table>
+            <div class="border rounded-md p-4 shadow-sm mb-6">
+                <div class="flex justify-between mb-4">
+                    <div class="flex items-center">
+                        <input type="text" id="student-search-input" class="p-2 border rounded-l-md" placeholder="Search by name or ID">
+                        <button id="student-search-btn" class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition-colors">Search</button>
+                    </div>
+                    <div class="flex items-center">
+                        <select id="student-batch-filter" class="p-2 border rounded-md mr-2">
+                            <option value="all">All Batches</option>
+                            <option value="A">Batch A</option>
+                            <option value="B">Batch B</option>
+                            <option value="C">Batch C</option>
+                            <option value="D">Batch D</option>
+                        </select>
+                        <select id="student-status-filter" class="p-2 border rounded-md">
+                            <option value="all">All Students</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="border p-2 bg-gray-100">ID</th>
+                                <th class="border p-2 bg-gray-100">Name</th>
+                                <th class="border p-2 bg-gray-100">Batch</th>
+                                <th class="border p-2 bg-gray-100">Subgroup</th>
+                                <th class="border p-2 bg-gray-100">Join Date</th>
+                                <th class="border p-2 bg-gray-100">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-table-body">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="flex justify-between mt-4">
+                    <div>
+                        <span id="student-count-display">Showing 0 of 0 students</span>
+                    </div>
+                    <div class="flex">
+                        <button id="prev-page" class="px-3 py-1 bg-gray-200 rounded-l-md hover:bg-gray-300 transition-colors">&lt;</button>
+                        <span id="page-display" class="px-3 py-1 bg-gray-100">Page 1 of 1</span>
+                        <button id="next-page" class="px-3 py-1 bg-gray-200 rounded-r-md hover:bg-gray-300 transition-colors">&gt;</button>
+                    </div>
+                </div>
             </div>
-            
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">OBGY (12 Weeks)</h3>
-                <div class="legend-item obgy"></div> OBGY
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Code</th>
-                        <th class="border p-1 text-sm">Subject</th>
-                        <th class="border p-1 text-sm">Duration</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">OB</td>
-                        <td class="border p-1 text-sm">OBGY</td>
-                        <td class="border p-1 text-sm">6 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">PE</td>
-                        <td class="border p-1 text-sm">Paediatrics</td>
-                        <td class="border p-1 text-sm">3 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">RM</td>
-                        <td class="border p-1 text-sm">Respiratory Medicine</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">RA</td>
-                        <td class="border p-1 text-sm">Radiology</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">DE</td>
-                        <td class="border p-1 text-sm">Dermatology</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                </table>
+        </div>
+        
+        <!-- Batch Transitions Tab Content -->
+        <div id="transition-tab" class="tab-content">
+            <div class="mb-6">
+                <h3 class="text-xl font-bold mb-3">Batch Transition Visualizer</h3>
+                <p class="mb-4">This section visualizes how batches split, merge, and rotate during transitions between different postings.</p>
+                
+                <div class="flex mb-4">
+                    <div class="mr-4">
+                        <label for="transition-batch" class="block text-sm font-medium mb-1">Select Batch:</label>
+                        <select id="transition-batch" class="w-full p-2 border rounded-md">
+                            <option value="A">Batch A</option>
+                            <option value="B">Batch B</option>
+                            <option value="C">Batch C</option>
+                            <option value="D">Batch D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="transition-phase" class="block text-sm font-medium mb-1">Select Phase:</label>
+                        <select id="transition-phase" class="w-full p-2 border rounded-md">
+                            <option value="medicine">Medicine</option>
+                            <option value="surgery">Surgery</option>
+                            <option value="obgy">OBGY</option>
+                            <option value="community">Community Medicine</option>
+                            <option value="misc">Miscellaneous</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="animation-controls mb-4">
+                    <button id="show-split-animation" class="px-4 py-2 bg-yellow-500 text-white rounded-l-md hover:bg-yellow-600 transition-colors">Split</button>
+                    <button id="show-merge-animation" class="px-4 py-2 bg-green-500 text-white hover:bg-green-600 transition-colors">Merge</button>
+                    <button id="show-rotate-animation" class="px-4 py-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 transition-colors">Rotate</button>
+                </div>
+                
+                <div class="animation-container border rounded-lg p-4 bg-white">
+                    <!-- Split Animation -->
+                    <div id="split-animation" class="animation-step">
+                        <div class="animation-title">Team Splitting Animation</div>
+                        <div class="flex flex-col items-center">
+                            <div class="team-block medicine">
+                                <div class="team-block-label">A1 - General Medicine</div>
+                                <div class="team-block-count">17</div>
+                            </div>
+                            <div class="text-center my-4">↓ Week 6 - Team Split</div>
+                            <div class="flex justify-center items-center flex-wrap">
+                                <div class="team-block-small medicine">
+                                    <div class="team-block-label">A1 - PY</div>
+                                    <div class="team-block-count">6</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small medicine">
+                                    <div class="team-block-label">A1 - CA</div>
+                                    <div class="team-block-count">6</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small medicine">
+                                    <div class="team-block-label">A1 - EN</div>
+                                    <div class="team-block-count">5</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Merge Animation -->
+                    <div id="merge-animation" class="animation-step">
+                        <div class="animation-title">Team Merging Animation</div>
+                        <div class="flex flex-col items-center">
+                            <div class="flex justify-center items-center flex-wrap">
+                                <div class="team-block-small surgery">
+                                    <div class="team-block-label">A2 - AN</div>
+                                    <div class="team-block-count">6</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small surgery">
+                                    <div class="team-block-label">A3 - OR</div>
+                                    <div class="team-block-count">6</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small surgery">
+                                    <div class="team-block-label">A4 - OP</div>
+                                    <div class="team-block-count">5</div>
+                                </div>
+                            </div>
+                            <div class="text-center my-4">↓ Week 7 - Team Merge</div>
+                            <div class="team-block surgery">
+                                <div class="team-block-label">A2/A3/A4 - General Surgery</div>
+                                <div class="team-block-count">17</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- OBGY Special Case Animation -->
+                    <div id="obgy-animation" class="animation-step">
+                        <div class="animation-title">OBGY Special Case (5 Subgroups)</div>
+                        <div class="flex flex-col items-center">
+                            <div class="team-block obgy">
+                                <div class="team-block-label">A1 - OBGY</div>
+                                <div class="team-block-count">17</div>
+                            </div>
+                            <div class="text-center my-4">↓ Week 6 - Team Split</div>
+                            <div class="flex justify-center items-center flex-wrap">
+                                <div class="team-block-small obgy">
+                                    <div class="team-block-label">A1 - PE</div>
+                                    <div class="team-block-count">8</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small obgy">
+                                    <div class="team-block-label">A1 - RM</div>
+                                    <div class="team-block-count">3</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small obgy">
+                                    <div class="team-block-label">A1 - RA</div>
+                                    <div class="team-block-count">3</div>
+                                </div>
+                                <div class="mx-2">+</div>
+                                <div class="team-block-small obgy">
+                                    <div class="team-block-label">A1 - DE</div>
+                                    <div class="team-block-count">3</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rotate Animation -->
+                    <div id="rotate-animation" class="animation-step">
+                        <div class="animation-title">Team Rotation Animation</div>
+                        <div class="flex flex-wrap justify-center items-center">
+                            <div class="team-block-small community">
+                                <div class="team-block-label">D1 - CH</div>
+                                <div class="team-block-count">9</div>
+                            </div>
+                            <div class="animation-arrow">→</div>
+                            <div class="team-block-small community">
+                                <div class="team-block-label">D1 - PH</div>
+                                <div class="team-block-count">8</div>
+                            </div>
+                            <div class="animation-arrow">→</div>
+                            <div class="team-block-small community">
+                                <div class="team-block-label">D1 - UH</div>
+                                <div class="team-block-count">9</div>
+                            </div>
+                            <div class="animation-arrow">→</div>
+                            <div class="team-block-small community">
+                                <div class="team-block-label">D1 - RH</div>
+                                <div class="team-block-count">8</div>
+                            </div>
+                        </div>
+                        <div class="text-center my-4">Every 3 weeks - Team Rotation</div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-sm text-gray-600">
+                    <p><strong>Note:</strong> These animations demonstrate the three types of transitions that occur during the rotation schedule:</p>
+                    <ul class="list-disc pl-5 mt-2">
+                        <li><strong>Split:</strong> A large team divides into smaller specialized teams</li>
+                        <li><strong>Merge:</strong> Multiple small teams combine into a larger team</li>
+                        <li><strong>Rotate:</strong> Teams move to different postings while maintaining their size</li>
+                        <li><strong>OBGY Special Case:</strong> In OBGY phase, the batch is split into 5 subgroups instead of 4</li>
+                    </ul>
+                </div>
             </div>
-            
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">Community Medicine (12 Weeks)</h3>
-                <div class="legend-item community"></div> Community Medicine
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Code</th>
-                        <th class="border p-1 text-sm">Subject</th>
-                        <th class="border p-1 text-sm">Duration</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">CH</td>
-                        <td class="border p-1 text-sm">CHC</td>
-                        <td class="border p-1 text-sm">3 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">PH</td>
-                        <td class="border p-1 text-sm">PHC</td>
-                        <td class="border p-1 text-sm">3 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">UH</td>
-                        <td class="border p-1 text-sm">UHC</td>
-                        <td class="border p-1 text-sm">3 weeks</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">RH</td>
-                        <td class="border p-1 text-sm">RHC</td>
-                        <td class="border p-1 text-sm">3 weeks</td>
-                    </tr>
-                </table>
-            </div>
-            
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">Miscellaneous (4 Weeks)</h3>
-                <div class="legend-item misc"></div> Miscellaneous
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Code</th>
-                        <th class="border p-1 text-sm">Subject</th>
-                        <th class="border p-1 text-sm">Duration</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">GY</td>
-                        <td class="border p-1 text-sm">Gynecology (separate)</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">LM</td>
-                        <td class="border p-1 text-sm">Lab Medicine</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">FM</td>
-                        <td class="border p-1 text-sm">Forensic Medicine</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">YO</td>
-                        <td class="border p-1 text-sm">Yoga</td>
-                        <td class="border p-1 text-sm">1 week</td>
-                    </tr>
-                </table>
-            </div>
-
-            <div class="border rounded-md p-4">
-                <h3 class="text-lg font-bold mb-2">Batch Information</h3>
-                <table class="w-full mt-2">
-                    <tr>
-                        <th class="border p-1 text-sm">Batch</th>
-                        <th class="border p-1 text-sm">Rotation Sequence</th>
-                        <th class="border p-1 text-sm">Members</th>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">A</td>
-                        <td class="border p-1 text-sm">M → S → O → C → MIS</td>
-                        <td class="border p-1 text-sm">34</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">B</td>
-                        <td class="border p-1 text-sm">S → O → C → M → MIS</td>
-                        <td class="border p-1 text-sm">34</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">C</td>
-                        <td class="border p-1 text-sm">O → C → M → S → MIS</td>
-                        <td class="border p-1 text-sm">34</td>
-                    </tr>
-                    <tr>
-                        <td class="border p-1 text-sm">D</td>
-                        <td class="border p-1 text-sm">C → M → S → O → MIS</td>
-                        <td class="border p-1 text-sm">34</td>
-                    </tr>
-                </table>
+        </div>
+        
+        <!-- Student Management Modal -->
+        <div id="student-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg p-6 w-full max-w-2xl">
+                <h2 id="student-modal-title" class="text-2xl font-bold mb-4">Add New Student</h2>
+                <div id="student-modal-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="new-student-name" class="block text-sm font-medium mb-1">Student Name:</label>
+                            <input type="text" id="new-student-name" class="w-full p-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label for="new-student-batch" class="block text-sm font-medium mb-1">Batch:</label>
+                            <select id="new-student-batch" class="w-full p-2 border rounded-md">
+                                <option value="D">Batch D</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="new-student-subgroup" class="block text-sm font-medium mb-1">Subgroup:</label>
+                            <select id="new-student-subgroup" class="w-full p-2 border rounded-md">
+                                <option value="D1">D1</option>
+                                <option value="D2">D2</option>
+                                <option value="D3">D3</option>
+                                <option value="D4">D4</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="new-student-status" class="block text-sm font-medium mb-1">Status:</label>
+                            <select id="new-student-status" class="w-full p-2 border rounded-md">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="new-student-join-date" class="block text-sm font-medium mb-1">Join Date:</label>
+                            <input type="date" id="new-student-join-date" class="w-full p-2 border rounded-md" value="">
+                        </div>
+                    </div>
+                    <div class="mt-4 text-red-500" id="add-student-error"></div>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button id="student-modal-close" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 mr-2">Cancel</button>
+                    <button id="student-modal-save" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Define the phase structure - this is the modular part that defines each phase
-        const phaseStructure = {
-            medicine: {
-                name: "Medicine",
-                duration: 12,
-                class: "medicine",
-                subphases: [
-                    { code: "GM", name: "General Medicine", duration: 6 },
-                    { code: "PY", name: "Psychiatry", duration: 2 },
-                    { code: "CA", name: "Casualty", duration: 2 },
-                    { code: "EN", name: "ENT", duration: 2 }
-                ]
-            },
-            surgery: {
-                name: "Surgery",
-                duration: 12,
-                class: "surgery",
-                subphases: [
-                    { code: "GS", name: "General Surgery", duration: 6 },
-                    { code: "AN", name: "Anaesthesia", duration: 2 },
-                    { code: "OR", name: "Orthopedics", duration: 2 },
-                    { code: "OP", name: "Ophthalmology", duration: 2 }
-                ]
-            },
-            obgy: {
-                name: "OBGY",
-                duration: 12,
-                class: "obgy",
-                subphases: [
-                    { code: "OB", name: "OBGY", duration: 6 },
-                    { code: "PE", name: "Paediatrics", duration: 3 },
-                    { code: "RM", name: "Respiratory Medicine", duration: 1 },
-                    { code: "RA", name: "Radiology", duration: 1 },
-                    { code: "DE", name: "Dermatology", duration: 1 }
-                ]
-            },
-            community: {
-                name: "Community Medicine",
-                duration: 12,
-                class: "community",
-                subphases: [
-                    { code: "CH", name: "CHC", duration: 3 },
-                    { code: "PH", name: "PHC", duration: 3 },
-                    { code: "UH", name: "UHC", duration: 3 },
-                    { code: "RH", name: "RHC", duration: 3 }
-                ]
-            },
-            misc: {
-                name: "Miscellaneous",
-                duration: 4,
-                class: "misc",
-                subphases: [
-                    { code: "GY", name: "Gynecology", duration: 1 },
-                    { code: "LM", name: "Lab Medicine", duration: 1 },
-                    { code: "FM", name: "Forensic Medicine", duration: 1 },
-                    { code: "YO", name: "Yoga", duration: 1 }
-                ]
-            }
-        };
-
-        // Define the batch rotation sequences
-        const batchSequences = {
-            A: ["medicine", "surgery", "obgy", "community", "misc"],
-            B: ["surgery", "obgy", "community", "medicine", "misc"],
-            C: ["obgy", "community", "medicine", "surgery", "misc"],
-            D: ["community", "medicine", "surgery", "obgy", "misc"]
-        };
-
-        // Function to get the phase for a given week and batch
-        function getPhaseForWeek(week, batch) {
-            const sequence = batchSequences[batch];
+        // Advanced data structure for the rotation system
+        const RotationSystem = {
+            // Start date of the internship
+            startDate: new Date(2025, 3, 1), // April 1, 2025
             
-            if (week <= 12) {
-                return sequence[0];
-            } else if (week <= 24) {
-                return sequence[1];
-            } else if (week <= 36) {
-                return sequence[2];
-            } else if (week <= 48) {
-                return sequence[3];
-            } else {
+            // Total number of weeks in the internship
+            totalWeeks: 52,
+            
+            // Maximum number of interns
+            maxInterns: 136,
+            
+            // Current number of interns
+            currentInterns: 110,
+            
+            // Number of batches
+            batchCount: 4,
+            
+            // Number of subgroups per batch
+            subgroupsPerBatch: 4,
+            
+            // Student distribution per batch
+            batchDistribution: {
+                A: 34,
+                B: 34,
+                C: 34,
+                D: 34
+            },
+            
+            // Posting member counts - fixed as per requirements
+            postingMemberCounts: {
+                medicine: {
+                    GM: 17,
+                    PY: 6,
+                    CA: 6,
+                    EN: 5
+                },
+                surgery: {
+                    GS: 17,
+                    AN: 6,
+                    OR: 6,
+                    OP: 5
+                },
+                obgy: {
+                    OB: 17,
+                    PE: 8,
+                    RM: 3,
+                    RA: 3,
+                    DE: 3
+                },
+                community: {
+                    CH: 9,
+                    PH: 8,
+                    UH: 9,
+                    RH: 8
+                },
+                misc: {
+                    FP: 9,
+                    LM: 8,
+                    FM: 9,
+                    YO: 8
+                }
+            },
+            
+            // Phase definitions with mathematical structure
+            phases: {
+                medicine: {
+                    name: "Medicine",
+                    code: "M",
+                    duration: 12,
+                    class: "medicine",
+                    subphases: [
+                        { code: "GM", name: "General Medicine", duration: 6 },
+                        { code: "PY", name: "Psychiatry", duration: 2 },
+                        { code: "CA", name: "Casualty", duration: 2 },
+                        { code: "EN", name: "ENT", duration: 2 }
+                    ],
+                    // Function to calculate the posting for a given week and subgroup
+                    getPosting: function(relativeWeek, subgroupIndex) {
+                        // First 6 weeks: SG-1 (17 students) does GM, others (PY, CA, EN) are distributed among SG-2, SG-3, SG-4
+                        // Last 6 weeks: SG-2, SG-3, SG-4 merge and do GM, SG-1 splits into PY, CA, EN
+                        
+                        if (relativeWeek <= 6) {
+                            // First half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 does GM for first 6 weeks
+                                return { code: "GM", name: "General Medicine", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                            } else {
+                                // Other subgroups do PY, CA, EN in different orders for 2 weeks each
+                                const patterns = [
+                                    ["PY", "CA", "EN"], // Subgroup 1 (index 1)
+                                    ["CA", "EN", "PY"], // Subgroup 2 (index 2)
+                                    ["EN", "PY", "CA"]  // Subgroup 3 (index 3)
+                                ];
+                                
+                                const pattern = patterns[subgroupIndex - 1];
+                                const postingIndex = Math.floor((relativeWeek - 1) / 2);
+                                const code = pattern[postingIndex];
+                                const name = this.getSubphaseName(code);
+                                const startWeek = postingIndex * 2 + 1;
+                                
+                                return { 
+                                    code: code, 
+                                    name: name, 
+                                    duration: 2, 
+                                    weeks: [startWeek, startWeek + 1] 
+                                };
+                            }
+                        } else {
+                            // Second half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 splits into PY, CA, EN
+                                if (relativeWeek <= 8) return { code: "PY", name: "Psychiatry", duration: 2, weeks: [7, 8] };
+                                if (relativeWeek <= 10) return { code: "CA", name: "Casualty", duration: 2, weeks: [9, 10] };
+                                return { code: "EN", name: "ENT", duration: 2, weeks: [11, 12] };
+                            } else {
+                                // Other subgroups all do GM in second half
+                                return { 
+                                    code: "GM", 
+                                    name: "General Medicine", 
+                                    duration: 6, 
+                                    weeks: [7, 8, 9, 10, 11, 12] 
+                                };
+                            }
+                        }
+                    },
+                    // Helper function to get subphase name from code
+                    getSubphaseName: function(code) {
+                        const subphase = this.subphases.find(sp => sp.code === code);
+                        return subphase ? subphase.name : "";
+                    },
+                    // Function to determine if a team split or merge happens at this week
+                    getTeamTransition: function(relativeWeek) {
+                        if (relativeWeek === 6) return "split"; // At week 6, the first group splits
+                        if (relativeWeek === 7) return "merge"; // At week 7, other groups merge into GM
+                        return null;
+                    }
+                },
+                surgery: {
+                    name: "Surgery",
+                    code: "S",
+                    duration: 12,
+                    class: "surgery",
+                    subphases: [
+                        { code: "GS", name: "General Surgery", duration: 6 },
+                        { code: "AN", name: "Anaesthesia", duration: 2 },
+                        { code: "OR", name: "Orthopedics", duration: 2 },
+                        { code: "OP", name: "Ophthalmology", duration: 2 }
+                    ],
+                    getPosting: function(relativeWeek, subgroupIndex) {
+                        // Similar logic to medicine phase
+                        if (relativeWeek <= 6) {
+                            // First half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 does GS for first 6 weeks
+                                return { code: "GS", name: "General Surgery", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                            } else {
+                                // Other subgroups do AN, OR, OP in different orders
+                                const patterns = [
+                                    ["AN", "OR", "OP"], // Subgroup 1
+                                    ["OR", "OP", "AN"], // Subgroup 2
+                                    ["OP", "AN", "OR"]  // Subgroup 3
+                                ];
+                                
+                                const pattern = patterns[subgroupIndex - 1];
+                                const postingIndex = Math.floor((relativeWeek - 1) / 2);
+                                const code = pattern[postingIndex];
+                                const name = this.getSubphaseName(code);
+                                const startWeek = postingIndex * 2 + 1;
+                                
+                                return { 
+                                    code: code, 
+                                    name: name, 
+                                    duration: 2, 
+                                    weeks: [startWeek, startWeek + 1] 
+                                };
+                            }
+                        } else {
+                            // Second half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 splits into AN, OR, OP
+                                if (relativeWeek <= 8) return { code: "AN", name: "Anaesthesia", duration: 2, weeks: [7, 8] };
+                                if (relativeWeek <= 10) return { code: "OR", name: "Orthopedics", duration: 2, weeks: [9, 10] };
+                                return { code: "OP", name: "Ophthalmology", duration: 2, weeks: [11, 12] };
+                            } else {
+                                // Other subgroups all do GS in second half
+                                return { 
+                                    code: "GS", 
+                                    name: "General Surgery", 
+                                    duration: 6, 
+                                    weeks: [7, 8, 9, 10, 11, 12] 
+                                };
+                            }
+                        }
+                    },
+                    getSubphaseName: function(code) {
+                        const subphase = this.subphases.find(sp => sp.code === code);
+                        return subphase ? subphase.name : "";
+                    },
+                    getTeamTransition: function(relativeWeek) {
+                        if (relativeWeek === 6) return "split";
+                        if (relativeWeek === 7) return "merge";
+                        return null;
+                    }
+                },
+                obgy: {
+                    name: "OBGY",
+                    code: "O",
+                    duration: 12,
+                    class: "obgy",
+                    subphases: [
+                        { code: "OB", name: "OBGY", duration: 6 },
+                        { code: "PE", name: "Paediatrics", duration: 3 },
+                        { code: "RM", name: "Respiratory Medicine", duration: 1 },
+                        { code: "RA", name: "Radiology", duration: 1 },
+                        { code: "DE", name: "Dermatology", duration: 1 }
+                    ],
+                    getPosting: function(relativeWeek, subgroupIndex) {
+                        // Special case for OBGY - 5 subgroups instead of 4
+                        if (relativeWeek <= 6) {
+                            // First half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 does OB for first 6 weeks
+                                return { code: "OB", name: "OBGY", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                            } else {
+                                // Other subgroups rotate through PE, RM, RA, DE
+                                // More complex rotation pattern due to different durations
+                                const patterns = [
+                                    [
+                                        { code: "PE", duration: 3, weeks: [1, 2, 3] },
+                                        { code: "RM", duration: 1, weeks: [4] },
+                                        { code: "RA", duration: 1, weeks: [5] },
+                                        { code: "DE", duration: 1, weeks: [6] }
+                                    ],
+                                    [
+                                        { code: "RM", duration: 1, weeks: [1] },
+                                        { code: "RA", duration: 1, weeks: [2] },
+                                        { code: "DE", duration: 1, weeks: [3] },
+                                        { code: "PE", duration: 3, weeks: [4, 5, 6] }
+                                    ],
+                                    [
+                                        { code: "RA", duration: 1, weeks: [1] },
+                                        { code: "DE", duration: 1, weeks: [2] },
+                                        { code: "PE", duration: 3, weeks: [3, 4, 5] },
+                                        { code: "RM", duration: 1, weeks: [6] }
+                                    ]
+                                ];
+                                
+                                const pattern = patterns[subgroupIndex - 1];
+                                
+                                for (const posting of pattern) {
+                                    if (posting.weeks.includes(relativeWeek)) {
+                                        return {
+                                            code: posting.code,
+                                            name: this.getSubphaseName(posting.code),
+                                            duration: posting.duration,
+                                            weeks: posting.weeks
+                                        };
+                                    }
+                                }
+                                
+                                // Fallback if no match found
+                                return { code: "", name: "", duration: 0, weeks: [] };
+                            }
+                        } else {
+                            // Second half of the phase
+                            if (subgroupIndex === 0) {
+                                // SG-1 splits into PE, RM, RA, DE
+                                if (relativeWeek <= 9) return { code: "PE", name: "Paediatrics", duration: 3, weeks: [7, 8, 9] };
+                                if (relativeWeek <= 10) return { code: "RM", name: "Respiratory Medicine", duration: 1, weeks: [10] };
+                                if (relativeWeek <= 11) return { code: "RA", name: "Radiology", duration: 1, weeks: [11] };
+                                return { code: "DE", name: "Dermatology", duration: 1, weeks: [12] };
+                            } else {
+                                // Other subgroups all do OB in second half
+                                return { 
+                                    code: "OB", 
+                                    name: "OBGY", 
+                                    duration: 6, 
+                                    weeks: [7, 8, 9, 10, 11, 12] 
+                                };
+                            }
+                        }
+                    },
+                    getSubphaseName: function(code) {
+                        const subphase = this.subphases.find(sp => sp.code === code);
+                        return subphase ? subphase.name : "";
+                    },
+                    getTeamTransition: function(relativeWeek) {
+                        if (relativeWeek === 6) return "split";
+                        if (relativeWeek === 7) return "merge";
+                        if (relativeWeek === 9) return "rotate"; // Special case for OBGY
+                        if (relativeWeek === 10) return "rotate";
+                        if (relativeWeek === 11) return "rotate";
+                        return null;
+                    }
+                },
+                community: {
+                    name: "Community Medicine",
+                    code: "CM",
+                    duration: 12,
+                    class: "community",
+                    subphases: [
+                        { code: "CH", name: "CHC", duration: 3 },
+                        { code: "PH", name: "PHC", duration: 3 },
+                        { code: "UH", name: "UHC", duration: 3 },
+                        { code: "RH", name: "RHC", duration: 3 }
+                    ],
+                    getPosting: function(relativeWeek, subgroupIndex) {
+                        // Each subgroup rotates through all 4 postings in a different order
+                        const rotationPatterns = [
+                            ["CH", "PH", "UH", "RH"], // Subgroup 0
+                            ["PH", "UH", "RH", "CH"], // Subgroup 1
+                            ["UH", "RH", "CH", "PH"], // Subgroup 2
+                            ["RH", "CH", "PH", "UH"]  // Subgroup 3
+                        ];
+                        
+                        const pattern = rotationPatterns[subgroupIndex];
+                        const postingIndex = Math.floor((relativeWeek - 1) / 3);
+                        const code = pattern[postingIndex];
+                        const name = this.getSubphaseName(code);
+                        const startWeek = (postingIndex * 3) + 1;
+                        
+                        return {
+                            code: code,
+                            name: name,
+                            duration: 3,
+                            weeks: [startWeek, startWeek + 1, startWeek + 2]
+                        };
+                    },
+                    getSubphaseName: function(code) {
+                        const subphase = this.subphases.find(sp => sp.code === code);
+                        return subphase ? subphase.name : "";
+                    },
+                    getTeamTransition: function(relativeWeek) {
+                        // Transitions happen every 3 weeks
+                        return relativeWeek % 3 === 0 ? "rotate" : null;
+                    }
+                },
+                misc: {
+                    name: "Miscellaneous",
+                    code: "Misc",
+                    duration: 4,
+                    class: "misc",
+                    subphases: [
+                        { code: "FP", name: "Family Planning", duration: 1 },
+                        { code: "LM", name: "Lab Medicine", duration: 1 },
+                        { code: "FM", name: "Forensic Medicine", duration: 1 },
+                        { code: "YO", name: "Yoga", duration: 1 }
+                    ],
+                    getPosting: function(relativeWeek, subgroupIndex) {
+                        // Each week, each subgroup is in a different posting
+                        const rotationPatterns = [
+                            ["FP", "LM", "FM", "YO"], // Subgroup 0
+                            ["LM", "FM", "YO", "FP"], // Subgroup 1
+                            ["FM", "YO", "FP", "LM"], // Subgroup 2
+                            ["YO", "FP", "LM", "FM"]  // Subgroup 3
+                        ];
+                        
+                        const pattern = rotationPatterns[subgroupIndex];
+                        const code = pattern[relativeWeek - 1];
+                        const name = this.getSubphaseName(code);
+                        
+                        return {
+                            code: code,
+                            name: name,
+                            duration: 1,
+                            weeks: [relativeWeek]
+                        };
+                    },
+                    getSubphaseName: function(code) {
+                        const subphase = this.subphases.find(sp => sp.code === code);
+                        return subphase ? subphase.name : "";
+                    },
+                    getTeamTransition: function(relativeWeek) {
+                        // Transitions happen every week
+                        return "rotate";
+                    }
+                }
+            },
+            
+            // Batch rotation sequences
+            batchSequences: {
+                A: ["medicine", "surgery", "obgy", "misc", "community"],
+                B: ["surgery", "obgy", "misc", "community", "medicine"],
+                C: ["obgy", "misc", "community", "medicine", "surgery"],
+                D: ["misc", "community", "medicine", "surgery", "obgy"]
+            },
+            
+            // Phase durations in weeks
+            phaseDurations: [12, 12, 12, 4, 12],
+            
+            // Function to get the phase for a given week and batch
+            getPhaseForWeek: function(week, batch) {
+                const sequence = this.batchSequences[batch];
+                
+                if (week <= 12) return sequence[0];
+                if (week <= 24) return sequence[1];
+                if (week <= 36) return sequence[2];
+                if (week <= 40) return sequence[3];
                 return sequence[4];
+            },
+            
+            // Function to get the relative week within a phase
+            getRelativeWeek: function(week) {
+                if (week <= 12) return week;
+                if (week <= 24) return week - 12;
+                if (week <= 36) return week - 24;
+                if (week <= 40) return week - 36;
+                return week - 40;
+            },
+            
+            // Function to get the week number from a date
+            getWeekFromDate: function(date) {
+                const diffTime = Math.abs(date - this.startDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return Math.floor(diffDays / 7) + 1;
+            },
+            
+            // Function to get the date range for a week
+            getDateRangeForWeek: function(week) {
+                const startDate = new Date(this.startDate);
+                startDate.setDate(startDate.getDate() + (week - 1) * 7);
+                
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + 6);
+                
+                return {
+                    start: startDate,
+                    end: endDate
+                };
+            },
+            
+            // Function to format a date range
+            formatDateRange: function(dateRange) {
+                const startMonth = dateRange.start.toLocaleString('default', { month: 'short' });
+                const endMonth = dateRange.end.toLocaleString('default', { month: 'short' });
+                
+                if (startMonth === endMonth) {
+                    return `${startMonth} ${dateRange.start.getDate()} - ${dateRange.end.getDate()}, ${dateRange.end.getFullYear()}`;
+                } else {
+                    return `${startMonth} ${dateRange.start.getDate()} - ${endMonth} ${dateRange.end.getDate()}, ${dateRange.end.getFullYear()}`;
+                }
+            },
+            
+            // Function to get the posting for a given week, subgroup, and batch
+            getPostingForWeek: function(week, subgroup, batch) {
+                const phase = this.getPhaseForWeek(week, batch);
+                const relativeWeek = this.getRelativeWeek(week);
+                const phaseInfo = this.phases[phase];
+                
+                // Get subgroup index (0-3)
+                const subgroupIndex = parseInt(subgroup.charAt(1)) - 1;
+                
+                // Get posting from the phase's getPosting function
+                const posting = phaseInfo.getPosting(relativeWeek, subgroupIndex);
+                
+                // Add phase information to the posting
+                posting.phase = phase;
+                
+                // Add absolute weeks (converting from relative weeks)
+                const weekOffset = week - relativeWeek;
+                posting.absoluteWeeks = posting.weeks.map(w => w + weekOffset);
+                
+                // Add team transition information
+                posting.teamTransition = phaseInfo.getTeamTransition(relativeWeek);
+                
+                // Add date range information
+                const dateRange = this.getDateRangeForWeek(week);
+                posting.dateRange = dateRange;
+                posting.formattedDateRange = this.formatDateRange(dateRange);
+                
+                return posting;
+            },
+            
+            // Function to get the status of a subgroup at a given week
+            getSubgroupStatus: function(week, subgroup, batch) {
+                const posting = this.getPostingForWeek(week, subgroup, batch);
+                const relativeWeek = this.getRelativeWeek(week);
+                const phase = this.getPhaseForWeek(week, batch);
+                
+                // Check if this is the first or last week of a posting
+                const isFirstWeek = posting.weeks[0] === relativeWeek;
+                const isLastWeek = posting.weeks[posting.weeks.length - 1] === relativeWeek;
+                
+                if (isFirstWeek && isLastWeek) {
+                    return "Complete";
+                } else if (isFirstWeek) {
+                    return "Starting";
+                } else if (isLastWeek) {
+                    return "Finishing";
+                } else {
+                    return "In Progress";
+                }
+            },
+            
+            // Function to get all phases
+            getAllPhases: function() {
+                return Object.keys(this.phases);
+            },
+            
+            // Function to get all subgroups for a batch
+            getSubgroups: function(batch) {
+                return Array.from({length: this.subgroupsPerBatch}, (_, i) => `${batch}${i+1}`);
+            },
+            
+            // Function to get the number of members in a subgroup based on posting
+            getMemberCountForPosting: function(posting, phase) {
+                return this.postingMemberCounts[phase][posting];
+            },
+            
+            // Student data (mock data for demonstration)
+            students: []
+        };
+        
+        // Generate mock student data
+        function generateMockStudents() {
+            const firstNames = ["John", "Jane", "Michael", "Emily", "David", "Sarah", "Robert", "Lisa", "William", "Mary", "James", "Jennifer", "Richard", "Elizabeth", "Joseph", "Patricia", "Thomas", "Linda", "Charles", "Barbara"];
+            const lastNames = ["Smith", "Johnson", "Williams", "Jones", "Brown", "Davis", "Miller", "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia", "Martinez", "Robinson"];
+            
+            const students = [];
+            let studentId = 1001;
+            
+            // Generate students for batches A, B, and C (34 each)
+            for (let batch of ['A', 'B', 'C', 'D']) {
+                for (let i = 0; i < 34; i++) {
+                    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+                    
+                    students.push({
+                        id: studentId++,
+                        name: `${firstName} ${lastName}`,
+                        batch: batch,
+                        subgroup: `${batch}${Math.floor(i / 9) + 1}`, // Distribute evenly across subgroups
+                        status: "active",
+                        joinDate: new Date(2025, 3, 1) // April 1, 2025
+                    });
+                }
             }
+            
+            return students;
         }
-
-        // Function to get the relative week within a phase
-        function getRelativeWeek(week) {
-            if (week <= 12) {
-                return week;
-            } else if (week <= 24) {
-                return week - 12;
-            } else if (week <= 36) {
-                return week - 24;
-            } else if (week <= 48) {
-                return week - 36;
-            } else {
-                return week - 48;
-            }
-        }
-
-        // Function to get the posting for a given week, subgroup, and batch
-        function getPostingForWeek(week, subgroup, batch) {
-            const phase = getPhaseForWeek(week, batch);
-            const relativeWeek = getRelativeWeek(week);
-            const phaseInfo = phaseStructure[phase];
-            
-            // Get subgroup number (1-4)
-            const subgroupNum = parseInt(subgroup.charAt(1));
-            
-            // Medicine Phase Logic
-            if (phase === "medicine") {
-                if (subgroupNum === 1) {
-                    if (relativeWeek <= 6) {
-                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
-                    } else if (relativeWeek <= 8) {
-                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [7, 8] };
-                    } else if (relativeWeek <= 10) {
-                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [9, 10] };
-                    } else {
-                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [11, 12] };
-                    }
-                } else if (subgroupNum === 2) {
-                    if (relativeWeek <= 2) {
-                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 3) {
-                    if (relativeWeek <= 2) {
-                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 4) {
-                    if (relativeWeek <= 2) {
-                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                }
-            }
-            
-            // Surgery Phase Logic
-            else if (phase === "surgery") {
-                if (subgroupNum === 1) {
-                    if (relativeWeek <= 6) {
-                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
-                    } else if (relativeWeek <= 8) {
-                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [7, 8] };
-                    } else if (relativeWeek <= 10) {
-                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [9, 10] };
-                    } else {
-                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [11, 12] };
-                    }
-                } else if (subgroupNum === 2) {
-                    if (relativeWeek <= 2) {
-                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 3) {
-                    if (relativeWeek <= 2) {
-                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 4) {
-                    if (relativeWeek <= 2) {
-                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [1, 2] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [3, 4] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [5, 6] };
-                    } else {
-                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                }
-            }
-            
-            // OBGY Phase Logic
-            else if (phase === "obgy") {
-                if (subgroupNum === 1) {
-                    if (relativeWeek <= 6) {
-                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [7, 8, 9] };
-                    } else if (relativeWeek <= 10) {
-                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [10] };
-                    } else if (relativeWeek <= 11) {
-                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [11] };
-                    } else {
-                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [12] };
-                    }
-                } else if (subgroupNum === 2) {
-                    if (relativeWeek <= 3) {
-                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [1, 2, 3] };
-                    } else if (relativeWeek <= 4) {
-                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [4] };
-                    } else if (relativeWeek <= 5) {
-                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [5] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [6] };
-                    } else {
-                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 3) {
-                    if (relativeWeek <= 1) {
-                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [1] };
-                    } else if (relativeWeek <= 2) {
-                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [2] };
-                    } else if (relativeWeek <= 3) {
-                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [3] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [4, 5, 6] };
-                    } else {
-                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
-                    }
-                } else if (subgroupNum === 4) {
-                    if (relativeWeek <= 1) {
-                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [1] };
-                    } else if (relativeWeek <= 2) {
-                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [2] };
-                    } else if (relativeWeek <= 3) {
-                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [3] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [4, 5, 6, 7, 8, 9] };
-                    } else {
-                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [10, 11, 12] };
-                    }
-                }
-            }
-            
-            // Community Medicine Phase Logic
-            else if (phase === "community") {
-                if (subgroupNum === 1) {
-                    if (relativeWeek <= 3) {
-                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [1, 2, 3] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [4, 5, 6] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [7, 8, 9] };
-                    } else {
-                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [10, 11, 12] };
-                    }
-                } else if (subgroupNum === 2) {
-                    if (relativeWeek <= 3) {
-                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [1, 2, 3] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [4, 5, 6] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [7, 8, 9] };
-                    } else {
-                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [10, 11, 12] };
-                    }
-                } else if (subgroupNum === 3) {
-                    if (relativeWeek <= 3) {
-                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [1, 2, 3] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [4, 5, 6] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [7, 8, 9] };
-                    } else {
-                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [10, 11, 12] };
-                    }
-                } else if (subgroupNum === 4) {
-                    if (relativeWeek <= 3) {
-                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [1, 2, 3] };
-                    } else if (relativeWeek <= 6) {
-                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [4, 5, 6] };
-                    } else if (relativeWeek <= 9) {
-                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [7, 8, 9] };
-                    } else {
-                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [10, 11, 12] };
-                    }
-                }
-            }
-            
-            // Miscellaneous Phase Logic
-            else if (phase === "misc") {
-                if (subgroupNum === 1) {
-                    if (relativeWeek === 1) {
-                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [1] };
-                    } else if (relativeWeek === 2) {
-                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [2] };
-                    } else if (relativeWeek === 3) {
-                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [3] };
-                    } else {
-                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [4] };
-                    }
-                } else if (subgroupNum === 2) {
-                    if (relativeWeek === 1) {
-                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [1] };
-                    } else if (relativeWeek === 2) {
-                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [2] };
-                    } else if (relativeWeek === 3) {
-                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [3] };
-                    } else {
-                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [4] };
-                    }
-                } else if (subgroupNum === 3) {
-                    if (relativeWeek === 1) {
-                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [1] };
-                    } else if (relativeWeek === 2) {
-                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [2] };
-                    } else if (relativeWeek === 3) {
-                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [3] };
-                    } else {
-                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [4] };
-                    }
-                } else if (subgroupNum === 4) {
-                    if (relativeWeek === 1) {
-                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [1] };
-                    } else if (relativeWeek === 2) {
-                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [2] };
-                    } else if (relativeWeek === 3) {
-                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [3] };
-                    } else {
-                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [4] };
-                    }
-                }
-            }
-            
-            return { code: "", phase: "", name: "", duration: 0, weeks: [] };
-        }
+        
+        // Initialize student data
+        RotationSystem.students = generateMockStudents();
         
         // Function to update the current week schedule
         function updateCurrentWeekSchedule() {
-            const week = parseInt($("#week-select").val());
+            const currentDate = new Date($("#date-select").val());
+            const week = RotationSystem.getWeekFromDate(currentDate);
             const batch = $("#batch-select").val();
             
-            const subgroups = [`${batch}1`, `${batch}2`, `${batch}3`, `${batch}4`];
+            const subgroups = RotationSystem.getSubgroups(batch);
             
             let html = "";
             
             for (const subgroup of subgroups) {
-                const posting = getPostingForWeek(week, subgroup, batch);
+                const posting = RotationSystem.getPostingForWeek(week, subgroup, batch);
                 const phaseClass = posting.phase;
+                const status = RotationSystem.getSubgroupStatus(week, subgroup, batch);
+                const memberCount = RotationSystem.getMemberCountForPosting(posting.code, posting.phase);
+                
+                // Determine if this subgroup is in a transition
+                let statusClass = "";
+                if (posting.teamTransition) {
+                    if (posting.teamTransition === "split") {
+                        statusClass = "bg-yellow-100";
+                    } else if (posting.teamTransition === "merge") {
+                        statusClass = "bg-green-100";
+                    } else if (posting.teamTransition === "rotate") {
+                        statusClass = "bg-blue-100";
+                    }
+                }
                 
                 html += `
-                    <tr>
+                    <tr class="${statusClass}">
                         <td class="border p-2">${subgroup}</td>
                         <td class="border p-2 ${phaseClass}">${posting.code}</td>
                         <td class="border p-2">${posting.name}</td>
                         <td class="border p-2">${posting.duration} week${posting.duration > 1 ? 's' : ''}</td>
-                        <td class="border p-2">${subgroup === batch + '1' ? '8' : subgroup === batch + '2' ? '9' : subgroup === batch + '3' ? '8' : '9'}</td>
+                        <td class="border p-2">${memberCount}</td>
+                        <td class="border p-2">${status}</td>
                     </tr>
                 `;
             }
@@ -734,13 +1649,20 @@
             $("#current-week-body").html(html);
             
             // Update current phase info
-            const phase = getPhaseForWeek(week, batch);
-            const relativeWeek = getRelativeWeek(week);
-            const phaseName = phaseStructure[phase].name;
-            const phaseDuration = phaseStructure[phase].duration;
+            const phase = RotationSystem.getPhaseForWeek(week, batch);
+            const relativeWeek = RotationSystem.getRelativeWeek(week);
+            const phaseName = RotationSystem.phases[phase].name;
+            const phaseDuration = RotationSystem.phases[phase].duration;
+            const dateRange = RotationSystem.getDateRangeForWeek(week);
+            const formattedDateRange = RotationSystem.formatDateRange(dateRange);
             
-            $("#current-phase-info").html(`Phase: <span class="font-bold">${phaseName} (Week ${relativeWeek} of ${phaseDuration})</span>`);
+            $("#current-phase-info").html(`Phase: <span class="font-bold">${phaseName} (${formattedDateRange})</span>`);
             $("#total-progress").html(`Overall Progress: <span class="font-bold">Week ${week} of 52</span>`);
+            $("#student-count").html(`Total Students: <span class="font-bold">${RotationSystem.currentInterns}/${RotationSystem.maxInterns}</span>`);
+            
+            // Update progress bar
+            const progressPercentage = (week / 52) * 100;
+            $("#progress-bar").css("width", `${progressPercentage}%`);
         }
         
         // Function to initialize the schedule grid
@@ -749,8 +1671,10 @@
             
             // Initialize subgroups
             let subgroupsHtml = "";
-            for (let i = 1; i <= 4; i++) {
-                subgroupsHtml += `<div class="week-cell batch-cell">${batch}${i}</div>`;
+            const subgroups = RotationSystem.getSubgroups(batch);
+            
+            for (const subgroup of subgroups) {
+                subgroupsHtml += `<div class="week-cell batch-cell">${subgroup}</div>`;
             }
             $("#subgroups").html(subgroupsHtml);
             
@@ -758,15 +1682,34 @@
             let gridHtml = "";
             
             for (let week = 1; week <= 52; week++) {
-                let columnHtml = `<div class="flex flex-col">
-                    <div class="week-cell header-cell">${week}</div>`;
+                const dateRange = RotationSystem.getDateRangeForWeek(week);
+                const formattedDateRange = RotationSystem.formatDateRange(dateRange);
                 
-                for (let i = 1; i <= 4; i++) {
-                    const subgroup = `${batch}${i}`;
-                    const posting = getPostingForWeek(week, subgroup, batch);
+                let columnHtml = `<div class="flex flex-col">
+                    <div class="week-cell header-cell">${formattedDateRange}</div>`;
+                
+                for (const subgroup of subgroups) {
+                    const posting = RotationSystem.getPostingForWeek(week, subgroup, batch);
                     const phaseClass = posting.phase;
                     
-                    columnHtml += `<div class="week-cell ${phaseClass}" data-week="${week}" data-subgroup="${subgroup}" data-posting="${posting.code}" data-phase="${posting.phase}" data-name="${posting.name}">${posting.code}</div>`;
+                    // Add data attributes for transitions
+                    let transitionClass = "";
+                    if (posting.teamTransition) {
+                        if (posting.teamTransition === "split") {
+                            transitionClass = "team-split-animation";
+                        } else if (posting.teamTransition === "merge") {
+                            transitionClass = "team-merge-animation";
+                        }
+                    }
+                    
+                    columnHtml += `<div class="week-cell ${phaseClass} ${transitionClass}" 
+                                       data-week="${week}" 
+                                       data-subgroup="${subgroup}" 
+                                       data-posting="${posting.code}" 
+                                       data-phase="${posting.phase}" 
+                                       data-name="${posting.name}"
+                                       data-date-range="${formattedDateRange}"
+                                       data-transition="${posting.teamTransition || ''}">${posting.code}</div>`;
                 }
                 
                 columnHtml += `</div>`;
@@ -774,6 +1717,9 @@
             }
             
             $("#schedule-grid").html(gridHtml);
+            
+            // Add phase markers
+            addPhaseMarkers(batch);
             
             // Highlight the current week
             highlightCurrentWeek();
@@ -785,15 +1731,31 @@
                     const phase = $(this).data("phase");
                     const name = $(this).data("name");
                     const subgroup = $(this).data("subgroup");
-                    const week = $(this).data("week");
+                    const dateRange = $(this).data("date-range");
+                    const transition = $(this).data("transition");
                     
                     if (posting && phase && name) {
-                        $("#tooltip").html(`
-                            <div>Week: ${week}</div>
+                        let tooltipContent = `
+                            <div class="font-bold">${dateRange}</div>
                             <div>Subgroup: ${subgroup}</div>
-                            <div>Phase: ${phaseStructure[phase].name}</div>
+                            <div>Phase: ${RotationSystem.phases[phase].name}</div>
                             <div>Posting: ${posting} - ${name}</div>
-                        `);
+                        `;
+                        
+                        if (transition) {
+                            let transitionText = "";
+                            if (transition === "split") {
+                                transitionText = "Team Split (Transition Week)";
+                            } else if (transition === "merge") {
+                                transitionText = "Team Merge (Transition Week)";
+                            } else if (transition === "rotate") {
+                                transitionText = "Team Rotation (Transition Week)";
+                            }
+                            
+                            tooltipContent += `<div class="mt-1 font-bold text-yellow-500">${transitionText}</div>`;
+                        }
+                        
+                        $("#tooltip").html(tooltipContent);
                         
                         $("#tooltip").css({
                             top: e.pageY + 10,
@@ -815,9 +1777,43 @@
             });
         }
         
+        // Function to add phase markers to the schedule grid
+        function addPhaseMarkers(batch) {
+            const sequence = RotationSystem.batchSequences[batch];
+            let markersHtml = "";
+            
+            // Calculate phase boundaries
+            let weekOffset = 0;
+            const phaseWeeks = [];
+            
+            for (let i = 0; i < RotationSystem.phaseDurations.length; i++) {
+                phaseWeeks.push(weekOffset + 1);
+                weekOffset += RotationSystem.phaseDurations[i];
+            }
+            
+            // Add markers at phase boundaries
+            for (let i = 0; i < phaseWeeks.length; i++) {
+                const week = phaseWeeks[i];
+                const phase = sequence[i];
+                const phaseName = RotationSystem.phases[phase].name;
+                const dateRange = RotationSystem.getDateRangeForWeek(week);
+                const formattedDate = dateRange.start.toLocaleString('default', { month: 'short', day: 'numeric' });
+                const left = (week - 1) * 80 + 80; // 80px per week cell + offset for subgroup column
+                
+                markersHtml += `
+                    <div class="phase-marker" style="left: ${left}px;">
+                        <div class="phase-label">${phaseName} (${formattedDate})</div>
+                    </div>
+                `;
+            }
+            
+            $("#phase-markers").html(markersHtml);
+        }
+        
         // Function to highlight the current week
         function highlightCurrentWeek() {
-            const week = parseInt($("#week-select").val());
+            const currentDate = new Date($("#date-select").val());
+            const week = RotationSystem.getWeekFromDate(currentDate);
             
             // Remove highlight from all cells
             $(".week-cell").removeClass("highlight");
@@ -830,8 +1826,11 @@
         function filterScheduleByPhase(phase) {
             if (phase === "all") {
                 $(".week-cell").show();
+                $(".phase-marker").show();
                 return;
             }
+            
+            $(".phase-marker").hide();
             
             $(".week-cell").each(function() {
                 const cellPhase = $(this).data("phase");
@@ -843,13 +1842,293 @@
             });
         }
         
+        // Function to animate team transitions
+        function animateTeamTransitions() {
+            // Reset any existing animations
+            $(".team-split-animation").removeClass("active");
+            $(".team-merge-animation").removeClass("active");
+            $(".split-animation").removeClass("split-animation");
+            $(".merge-animation").removeClass("merge-animation");
+            
+            // Get all cells with transitions
+            const transitionCells = $(".week-cell[data-transition]").filter(function() {
+                return $(this).data("transition") !== "";
+            });
+            
+            // Animate each transition cell sequentially
+            let delay = 0;
+            transitionCells.each(function() {
+                const cell = $(this);
+                const transition = cell.data("transition");
+                
+                setTimeout(function() {
+                    if (transition === "split") {
+                        cell.addClass("active split-animation");
+                    } else if (transition === "merge") {
+                        cell.addClass("active merge-animation");
+                    } else if (transition === "rotate") {
+                        cell.addClass("active split-animation");
+                        setTimeout(() => cell.addClass("merge-animation"), 500);
+                    }
+                    
+                    // Remove the animation class after it completes
+                    setTimeout(function() {
+                        cell.removeClass("active split-animation merge-animation");
+                    }, 1500);
+                }, delay);
+                
+                delay += 200;
+            });
+        }
+        
+        // Function to populate student search dropdown
+        function populateStudentSearch() {
+            const studentSelect = $(".student-select");
+            studentSelect.empty();
+            
+            // Add default option
+            studentSelect.append('<option value="">Select a student</option>');
+            
+            // Sort students by name
+            const sortedStudents = [...RotationSystem.students].sort((a, b) => a.name.localeCompare(b.name));
+            
+            // Add student options
+            for (const student of sortedStudents) {
+                studentSelect.append(`<option value="${student.id}">${student.name} (${student.batch}${student.subgroup.charAt(1)})</option>`);
+            }
+            
+            // Initialize Select2
+            studentSelect.select2({
+                placeholder: "Search for a student...",
+                allowClear: true
+            });
+        }
+        
+        // Function to populate student table
+        function populateStudentTable(filter = {}) {
+            let filteredStudents = [...RotationSystem.students];
+            
+            // Apply filters
+            if (filter.batch && filter.batch !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.batch === filter.batch);
+            }
+            
+            if (filter.status && filter.status !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.status === filter.status);
+            }
+            
+            if (filter.search) {
+                const searchTerm = filter.search.toLowerCase();
+                filteredStudents = filteredStudents.filter(s => 
+                    s.name.toLowerCase().includes(searchTerm) || 
+                    s.id.toString().includes(searchTerm)
+                );
+            }
+            
+            // Sort students
+            filteredStudents.sort((a, b) => {
+                if (a.batch !== b.batch) return a.batch.localeCompare(b.batch);
+                return a.name.localeCompare(b.name);
+            });
+            
+            // Update table
+            let html = '';
+            for (const student of filteredStudents) {
+                const joinDate = new Date(student.joinDate).toLocaleDateString();
+                html += `
+                    <tr>
+                        <td class="border p-2">${student.id}</td>
+                        <td class="border p-2">${student.name}</td>
+                        <td class="border p-2">${student.batch}</td>
+                        <td class="border p-2">${student.subgroup}</td>
+                        <td class="border p-2">${joinDate}</td>
+                        <td class="border p-2">
+                            <button class="edit-student px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 mr-1" data-id="${student.id}">Edit</button>
+                            <button class="delete-student px-2 py-1 bg-red-500 text-white rounded-md hover:bg-red-600" data-id="${student.id}">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            $("#student-table-body").html(html);
+            $("#student-count-display").text(`Showing ${filteredStudents.length} of ${RotationSystem.students.length} students`);
+        }
+        
+        // Function to update transition visualizer
+        function updateTransitionVisualizer(batch, phase) {
+            // Update the team counts in the visualizer based on the batch and phase
+            const phaseInfo = RotationSystem.phases[phase];
+            
+            // Update animation blocks with correct phase class
+            $(".team-block, .team-block-small").removeClass("medicine surgery obgy community misc").addClass(phaseInfo.class);
+            
+            // Update batch labels
+            $(".team-block-label, .team-block-small .team-block-label").each(function() {
+                const text = $(this).text();
+                const newText = text.replace(/^[A-D]/, batch);
+                $(this).text(newText);
+            });
+            
+            // Update counts based on the phase
+            if (phase === "medicine" || phase === "surgery") {
+                // Medicine and Surgery have similar structure
+                const mainSubject = phase === "medicine" ? "GM" : "GS";
+                const subSubjects = phase === "medicine" ? ["PY", "CA", "EN"] : ["AN", "OR", "OP"];
+                
+                // Update split animation
+                $("#split-animation .team-block-label").first().text(`${batch}1 - ${phaseInfo.getSubphaseName(mainSubject)}`);
+                $("#split-animation .team-block-count").first().text(RotationSystem.postingMemberCounts[phase][mainSubject]);
+                
+                $("#split-animation .team-block-small .team-block-label").eq(0).text(`${batch}1 - ${subSubjects[0]}`);
+                $("#split-animation .team-block-small .team-block-count").eq(0).text(RotationSystem.postingMemberCounts[phase][subSubjects[0]]);
+                
+                $("#split-animation .team-block-small .team-block-label").eq(1).text(`${batch}1 - ${subSubjects[1]}`);
+                $("#split-animation .team-block-small .team-block-count").eq(1).text(RotationSystem.postingMemberCounts[phase][subSubjects[1]]);
+                
+                $("#split-animation .team-block-small .team-block-label").eq(2).text(`${batch}1 - ${subSubjects[2]}`);
+                $("#split-animation .team-block-small .team-block-count").eq(2).text(RotationSystem.postingMemberCounts[phase][subSubjects[2]]);
+                
+                // Update merge animation
+                $("#merge-animation .team-block-label").text(`${batch}2/${batch}3/${batch}4 - ${phaseInfo.getSubphaseName(mainSubject)}`);
+                $("#merge-animation .team-block-count").text(RotationSystem.postingMemberCounts[phase][mainSubject]);
+                
+                $("#merge-animation .team-block-small .team-block-label").eq(0).text(`${batch}2 - ${subSubjects[0]}`);
+                $("#merge-animation .team-block-small .team-block-count").eq(0).text(RotationSystem.postingMemberCounts[phase][subSubjects[0]]);
+                
+                $("#merge-animation .team-block-small .team-block-label").eq(1).text(`${batch}3 - ${subSubjects[1]}`);
+                $("#merge-animation .team-block-small .team-block-count").eq(1).text(RotationSystem.postingMemberCounts[phase][subSubjects[1]]);
+                
+                $("#merge-animation .team-block-small .team-block-label").eq(2).text(`${batch}4 - ${subSubjects[2]}`);
+                $("#merge-animation .team-block-small .team-block-count").eq(2).text(RotationSystem.postingMemberCounts[phase][subSubjects[2]]);
+                
+                // Show split animation by default
+                $("#split-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            } else if (phase === "obgy") {
+                // Show OBGY special case
+                $("#obgy-animation").addClass("active").siblings(".animation-step").removeClass("active");
+                
+                // Update OBGY animation
+                $("#obgy-animation .team-block-label").first().text(`${batch}1 - ${phaseInfo.getSubphaseName("OB")}`);
+                $("#obgy-animation .team-block-count").first().text(RotationSystem.postingMemberCounts[phase]["OB"]);
+                
+                $("#obgy-animation .team-block-small .team-block-label").eq(0).text(`${batch}1 - PE`);
+                $("#obgy-animation .team-block-small .team-block-count").eq(0).text(RotationSystem.postingMemberCounts[phase]["PE"]);
+                
+                $("#obgy-animation .team-block-small .team-block-label").eq(1).text(`${batch}1 - RM`);
+                $("#obgy-animation .team-block-small .team-block-count").eq(1).text(RotationSystem.postingMemberCounts[phase]["RM"]);
+                
+                $("#obgy-animation .team-block-small .team-block-label").eq(2).text(`${batch}1 - RA`);
+                $("#obgy-animation .team-block-small .team-block-count").eq(2).text(RotationSystem.postingMemberCounts[phase]["RA"]);
+                
+                $("#obgy-animation .team-block-small .team-block-label").eq(3).text(`${batch}1 - DE`);
+                $("#obgy-animation .team-block-small .team-block-count").eq(3).text(RotationSystem.postingMemberCounts[phase]["DE"]);
+            } else if (phase === "community") {
+                // Update rotate animation for community medicine
+                const subphases = ["CH", "PH", "UH", "RH"];
+                
+                for (let i = 0; i < 4; i++) {
+                    $("#rotate-animation .team-block-small .team-block-label").eq(i).text(`${batch}1 - ${subphases[i]}`);
+                    $("#rotate-animation .team-block-small .team-block-count").eq(i).text(RotationSystem.postingMemberCounts[phase][subphases[i]]);
+                }
+                
+                // Show rotate animation
+                $("#rotate-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            } else if (phase === "misc") {
+                // Update rotate animation for miscellaneous
+                const subphases = ["FP", "LM", "FM", "YO"];
+                
+                for (let i = 0; i < 4; i++) {
+                    $("#rotate-animation .team-block-small .team-block-label").eq(i).text(`${batch}1 - ${subphases[i]}`);
+                    $("#rotate-animation .team-block-small .team-block-count").eq(i).text(RotationSystem.postingMemberCounts[phase][subphases[i]]);
+                }
+                
+                // Show rotate animation
+                $("#rotate-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            }
+        }
+        
+        // Function to add a new student
+        function addNewStudent() {
+            const name = $("#new-student-name").val().trim();
+            const batch = $("#new-student-batch").val();
+            const subgroup = $("#new-student-subgroup").val();
+            const status = $("#new-student-status").val();
+            const joinDate = new Date($("#new-student-join-date").val());
+            
+            // Validate input
+            if (!name) {
+                $("#add-student-error").text("Please enter a student name.");
+                return;
+            }
+            
+            // Check if we've reached the maximum number of students
+            if (RotationSystem.students.length >= RotationSystem.maxInterns) {
+                $("#add-student-error").text(`Cannot add more students. Maximum limit of ${RotationSystem.maxInterns} reached.`);
+                return;
+            }
+            
+            // Generate a new student ID
+            const maxId = Math.max(...RotationSystem.students.map(s => s.id));
+            const newId = maxId + 1;
+            
+            // Create new student object
+            const newStudent = {
+                id: newId,
+                name: name,
+                batch: batch,
+                subgroup: subgroup,
+                status: status,
+                joinDate: joinDate
+            };
+            
+            // Add to students array
+            RotationSystem.students.push(newStudent);
+            
+            // Update current interns count if active
+            if (status === "active") {
+                RotationSystem.currentInterns++;
+            }
+            
+            // Update UI
+            updateCurrentWeekSchedule();
+            populateStudentSearch();
+            populateStudentTable();
+            
+            // Close modal
+            $("#student-modal").addClass("hidden");
+        }
+        
         // Initialize the page
         $(document).ready(function() {
+            // Set the initial date to April 1, 2025
+            const startDate = new Date(2025, 3, 1);
+            $("#date-select").val(startDate.toISOString().split('T')[0]);
+            
             // Initialize the schedule grid
             initializeScheduleGrid();
             
             // Initialize the current week schedule
             updateCurrentWeekSchedule();
+            
+            // Initialize student search
+            populateStudentSearch();
+            
+            // Initialize student table
+            populateStudentTable();
+            
+            // Initialize transition visualizer
+            updateTransitionVisualizer("A", "medicine");
+            
+            // Handle tab switching
+            $(".tab-button").click(function() {
+                const tabId = $(this).data("tab");
+                
+                // Activate the clicked tab
+                $(this).addClass("active").siblings().removeClass("active");
+                
+                // Show the corresponding tab content
+                $(`#${tabId}`).addClass("active").siblings(".tab-content").removeClass("active");
+            });
             
             // Handle batch selection change
             $("#batch-select").change(function() {
@@ -857,51 +2136,101 @@
                 updateCurrentWeekSchedule();
             });
             
-            // Handle week selection change
-            $("#week-select").change(function() {
-                const week = parseInt($(this).val());
-                
-                // Validate week range
-                if (week < 1) {
-                    $(this).val(1);
-                } else if (week > 52) {
-                    $(this).val(52);
-                }
-                
+            // Handle date selection change
+            $("#date-select").change(function() {
                 highlightCurrentWeek();
                 updateCurrentWeekSchedule();
             });
             
             // Handle phase selection change
             $("#phase-select").change(function() {
-                const week = parseInt($(this).val());
-                $("#week-select").val(week).change();
+                const phaseIndex = parseInt($(this).val());
+                let weekOffset = 0;
+                
+                for (let i = 0; i < phaseIndex; i++) {
+                    weekOffset += RotationSystem.phaseDurations[i];
+                }
+                
+                const targetWeek = weekOffset + 1;
+                const targetDate = RotationSystem.getDateRangeForWeek(targetWeek).start;
+                
+                $("#date-select").val(targetDate.toISOString().split('T')[0]).change();
             });
             
             // Handle previous week button
             $("#prev-week").click(function() {
-                const week = parseInt($("#week-select").val());
-                if (week > 1) {
-                    $("#week-select").val(week - 1).change();
+                const currentDate = new Date($("#date-select").val());
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() - 7);
+                
+                // Don't go before start date
+                if (newDate >= RotationSystem.startDate) {
+                    $("#date-select").val(newDate.toISOString().split('T')[0]).change();
                 }
             });
             
             // Handle next week button
             $("#next-week").click(function() {
-                const week = parseInt($("#week-select").val());
-                if (week < 52) {
-                    $("#week-select").val(week + 1).change();
+                const currentDate = new Date($("#date-select").val());
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() + 7);
+                
+                // Don't go beyond end date (52 weeks from start)
+                const endDate = new Date(RotationSystem.startDate);
+                endDate.setDate(endDate.getDate() + 52 * 7);
+                
+                if (newDate <= endDate) {
+                    $("#date-select").val(newDate.toISOString().split('T')[0]).change();
                 }
             });
             
             // Handle reset button
             $("#reset-btn").click(function() {
-                $("#week-select").val(1).change();
+                $("#date-select").val(startDate.toISOString().split('T')[0]).change();
                 $("#batch-select").val("A").change();
                 stopSimulation();
                 filterScheduleByPhase("all");
                 $("#view-all").addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
                 $("#view-medicine, #view-surgery, #view-obgy, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            // Handle animate transitions button
+            $("#animate-transitions-btn").click(function() {
+                animateTeamTransitions();
+            });
+            
+            // Handle student search
+            $(".student-select").on("change", function() {
+                const studentId = $(this).val();
+                if (!studentId) return;
+                
+                const student = RotationSystem.students.find(s => s.id == studentId);
+                if (student) {
+                    // Switch to the student's batch
+                    $("#batch-select").val(student.batch).change();
+                    
+                    // Highlight the student's subgroup
+                    $(".week-cell").removeClass("highlight");
+                    $(`.week-cell[data-subgroup="${student.subgroup}"]`).addClass("highlight");
+                }
+            });
+            
+            // Handle subject filter
+            $("#subject-filter").on("change", function() {
+                const subject = $(this).val();
+                if (subject === "all") {
+                    $(".week-cell").show();
+                    return;
+                }
+                
+                $(".week-cell").each(function() {
+                    const posting = $(this).data("posting");
+                    if (posting === subject || !posting) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
             });
             
             // Handle phase filter buttons
@@ -941,6 +2270,104 @@
                 $("#view-all, #view-medicine, #view-surgery, #view-obgy, #view-community").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
             });
             
+            // Handle transition visualizer controls
+            $("#transition-batch").change(function() {
+                const batch = $(this).val();
+                const phase = $("#transition-phase").val();
+                updateTransitionVisualizer(batch, phase);
+            });
+            
+            $("#transition-phase").change(function() {
+                const batch = $("#transition-batch").val();
+                const phase = $(this).val();
+                updateTransitionVisualizer(batch, phase);
+            });
+            
+            // Handle transition animation buttons
+            $("#show-split-animation").click(function() {
+                $("#split-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            });
+            
+            $("#show-merge-animation").click(function() {
+                $("#merge-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            });
+            
+            $("#show-rotate-animation").click(function() {
+                $("#rotate-animation").addClass("active").siblings(".animation-step").removeClass("active");
+            });
+            
+            // Handle student management
+            $("#add-student-btn").click(function() {
+                // Reset form
+                $("#new-student-name").val("");
+                $("#new-student-join-date").val(new Date().toISOString().split('T')[0]);
+                $("#add-student-error").text("");
+                
+                // Show modal
+                $("#student-modal").removeClass("hidden");
+            });
+            
+            // Handle student search and filters
+            $("#student-search-btn").click(function() {
+                const searchTerm = $("#student-search-input").val();
+                const batchFilter = $("#student-batch-filter").val();
+                const statusFilter = $("#student-status-filter").val();
+                
+                populateStudentTable({
+                    search: searchTerm,
+                    batch: batchFilter,
+                    status: statusFilter
+                });
+            });
+            
+            // Handle student modal close
+            $("#student-modal-close").click(function() {
+                $("#student-modal").addClass("hidden");
+            });
+            
+            // Handle student modal save
+            $("#student-modal-save").click(function() {
+                addNewStudent();
+            });
+            
+            // Handle edit student button
+            $(document).on("click", ".edit-student", function() {
+                const studentId = $(this).data("id");
+                const student = RotationSystem.students.find(s => s.id == studentId);
+                
+                if (student) {
+                    // Populate form
+                    $("#student-modal-title").text("Edit Student");
+                    $("#new-student-name").val(student.name);
+                    $("#new-student-batch").val(student.batch);
+                    $("#new-student-subgroup").val(student.subgroup);
+                    $("#new-student-status").val(student.status);
+                    $("#new-student-join-date").val(new Date(student.joinDate).toISOString().split('T')[0]);
+                    
+                    // Store student ID for update
+                    $("#student-modal-save").data("student-id", studentId);
+                    
+                    // Show modal
+                    $("#student-modal").removeClass("hidden");
+                }
+            });
+            
+            // Handle delete student button
+            $(document).on("click", ".delete-student", function() {
+                const studentId = $(this).data("id");
+                const studentIndex = RotationSystem.students.findIndex(s => s.id == studentId);
+                
+                if (studentIndex !== -1) {
+                    // Remove student
+                    RotationSystem.students.splice(studentIndex, 1);
+                    
+                    // Update UI
+                    updateCurrentWeekSchedule();
+                    populateStudentSearch();
+                    populateStudentTable();
+                }
+            });
+            
             // Simulation variables
             let simulationInterval = null;
             
@@ -962,9 +2389,16 @@
                 $("#stop-simulation").show();
                 
                 simulationInterval = setInterval(function() {
-                    const week = parseInt($("#week-select").val());
-                    if (week < 52) {
-                        $("#week-select").val(week + 1).change();
+                    const currentDate = new Date($("#date-select").val());
+                    const newDate = new Date(currentDate);
+                    newDate.setDate(newDate.getDate() + 7);
+                    
+                    // Check if we've reached the end of the internship
+                    const endDate = new Date(RotationSystem.startDate);
+                    endDate.setDate(endDate.getDate() + 52 * 7);
+                    
+                    if (newDate <= endDate) {
+                        $("#date-select").val(newDate.toISOString().split('T')[0]).change();
                     } else {
                         stopSimulation();
                     }

@@ -3,419 +3,983 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIMSIR Internship Rotation System</title>
-    <!-- Tailwind CSS via CDN -->
+    <title>Medical Internship Rotation Schedule</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- jQuery via CDN -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <!-- Custom styles -->
-    <style type="text/tailwindcss">
-        @layer components {
-            .phase-badge {
-                @apply px-3 py-1 rounded-full text-xs font-medium;
-            }
-            .phase-a {
-                @apply bg-blue-100 text-blue-800;
-            }
-            .phase-b {
-                @apply bg-green-100 text-green-800;
-            }
-            .phase-c {
-                @apply bg-yellow-100 text-yellow-800;
-            }
-            .phase-d {
-                @apply bg-purple-100 text-purple-800;
-            }
-            .completed {
-                @apply bg-gray-100 text-gray-800;
-            }
-            .progress-step {
-                @apply w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium border;
-            }
-            .progress-step-active {
-                @apply bg-blue-600 text-white border-blue-600;
-            }
-            .progress-step-completed {
-                @apply bg-green-600 text-white border-green-600;
-            }
-            .progress-step-inactive {
-                @apply bg-white text-gray-400 border-gray-300;
-            }
-            .progress-line {
-                @apply flex-1 h-0.5 bg-gray-200;
-            }
-            .progress-line-active {
-                @apply bg-blue-600;
-            }
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .week-cell {
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            border: 1px solid #ddd;
+            font-size: 0.8rem;
+        }
+        .header-cell {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .batch-cell {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        .medicine { background-color: #ffcccc; }
+        .surgery { background-color: #ccffcc; }
+        .obgy { background-color: #ccccff; }
+        .community { background-color: #ffffcc; }
+        .misc { background-color: #ffccff; }
+        
+        .highlight {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .legend-item {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .phase-header {
+            font-weight: bold;
+            background-color: #f0f0f0;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .schedule-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <!-- Header -->
-    <header class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                        </svg>
-                        <h1 class="ml-2 text-xl font-bold text-gray-900">GIMSIR Internship Rotation System</h1>
-                    </div>
+<body class="bg-gray-100 p-4 md:p-8">
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold text-center mb-6">Medical Internship Rotation Schedule</h1>
+        
+        <div class="flex flex-col md:flex-row gap-4 mb-6">
+            <div class="md:w-1/3">
+                <label for="batch-select" class="block text-lg font-medium mb-2">Select Batch:</label>
+                <select id="batch-select" class="w-full p-2 border rounded-md">
+                    <option value="A">Batch A (M → S → O → C)</option>
+                    <option value="B">Batch B (S → O → C → M)</option>
+                    <option value="C">Batch C (O → C → M → S)</option>
+                    <option value="D">Batch D (C → M → S → O)</option>
+                </select>
+            </div>
+            
+            <div class="md:w-1/3">
+                <label for="week-select" class="block text-lg font-medium mb-2">Current Week:</label>
+                <div class="flex items-center">
+                    <button id="prev-week" class="px-4 py-2 bg-gray-200 rounded-l-md hover:bg-gray-300">&lt;</button>
+                    <input type="number" id="week-select" min="1" max="52" value="1" class="w-full p-2 border text-center">
+                    <button id="next-week" class="px-4 py-2 bg-gray-200 rounded-r-md hover:bg-gray-300">&gt;</button>
                 </div>
-                <nav class="hidden md:flex space-x-8 items-center">
-                    <a href="#" class="text-blue-600 font-medium">Home</a>
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium">Dashboard</a>
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium">About</a>
-                </nav>
-                <div class="md:hidden flex items-center">
-                    <button type="button" class="text-gray-500 hover:text-gray-900 focus:outline-none">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                        </svg>
-                    </button>
-                </div>
+            </div>
+
+            <div class="md:w-1/3">
+                <label for="phase-select" class="block text-lg font-medium mb-2">Jump to Phase:</label>
+                <select id="phase-select" class="w-full p-2 border rounded-md">
+                    <option value="1">Medicine (Weeks 1-12)</option>
+                    <option value="13">Surgery (Weeks 13-24)</option>
+                    <option value="25">OBGY (Weeks 25-36)</option>
+                    <option value="37">Community Medicine (Weeks 37-48)</option>
+                    <option value="49">Miscellaneous (Weeks 49-52)</option>
+                </select>
             </div>
         </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Controls -->
-        <div class="bg-white shadow rounded-lg p-6 mb-8">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
-                    <div>
-                        <label for="batch-select" class="block text-sm font-medium text-gray-700">Select Batch</label>
-                        <select id="batch-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                            <option value="batch1">Batch 1</option>
-                            <option value="batch2">Batch 2</option>
-                            <option value="batch3">Batch 3</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="week-select" class="block text-sm font-medium text-gray-700">Current Week</label>
-                        <select id="week-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                            <option value="1">Week 1</option>
-                            <option value="2">Week 2</option>
-                            <option value="3">Week 3</option>
-                            <option value="4">Week 4</option>
-                            <option value="5">Week 5</option>
-                            <option value="6">Week 6</option>
-                            <option value="7">Week 7</option>
-                            <option value="8">Week 8</option>
-                            <option value="9">Week 9</option>
-                            <option value="10">Week 10</option>
-                            <option value="11">Week 11</option>
-                            <option value="12">Week 12</option>
-                            <option value="13">Week 13</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <button id="rotate-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        <svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
-                        Rotate to Next Phase
-                    </button>
-                </div>
-            </div>
+        
+        <div class="flex justify-center gap-4 mb-6">
+            <button id="simulate-btn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Start Simulation</button>
+            <button id="stop-simulation" class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 hidden">Stop Simulation</button>
+            <button id="reset-btn" class="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">Reset</button>
         </div>
 
-        <!-- Phase Overview -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white shadow rounded-lg p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Phase A</h3>
-                <div class="flex items-center">
-                    <span class="phase-badge phase-a">25 Students</span>
-                </div>
-            </div>
-            <div class="bg-white shadow rounded-lg p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Phase B</h3>
-                <div class="flex items-center">
-                    <span class="phase-badge phase-b">25 Students</span>
-                </div>
-            </div>
-            <div class="bg-white shadow rounded-lg p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Phase C</h3>
-                <div class="flex items-center">
-                    <span class="phase-badge phase-c">25 Students</span>
-                </div>
-            </div>
-            <div class="bg-white shadow rounded-lg p-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Phase D</h3>
-                <div class="flex items-center">
-                    <span class="phase-badge phase-d">25 Students</span>
-                </div>
-            </div>
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+            <h2 class="text-xl font-bold mb-3">Current Status</h2>
+            <div id="current-phase-info" class="text-lg mb-2">Phase: <span class="font-bold">Medicine (Week 1 of 12)</span></div>
+            <div id="total-progress" class="text-lg">Overall Progress: <span class="font-bold">Week 1 of 52</span></div>
         </div>
-
-        <!-- Student Table -->
-        <div class="bg-white shadow rounded-lg overflow-hidden">
-            <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
-                <h2 class="text-lg font-medium text-gray-900">Student Assignments</h2>
-                <div class="relative">
-                    <input type="text" id="search-input" placeholder="Search students..." class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md">
+        
+        <div class="overflow-x-auto mb-8">
+            <h2 class="text-xl font-bold mb-3">Current Week Schedule</h2>
+            <table id="current-week-table" class="w-full border-collapse">
+                <thead>
+                    <tr>
+                        <th class="border p-2 bg-gray-100">Subgroup</th>
+                        <th class="border p-2 bg-gray-100">Current Posting</th>
+                        <th class="border p-2 bg-gray-100">Department</th>
+                        <th class="border p-2 bg-gray-100">Duration</th>
+                        <th class="border p-2 bg-gray-100">Members</th>
+                    </tr>
+                </thead>
+                <tbody id="current-week-body">
+                    <!-- Will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-3">Full Schedule Overview</h2>
+            <div class="flex mb-2">
+                <button id="view-all" class="px-4 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">View All Weeks</button>
+                <button id="view-medicine" class="px-4 py-2 bg-red-200 text-gray-800 hover:bg-red-300">Medicine</button>
+                <button id="view-surgery" class="px-4 py-2 bg-green-200 text-gray-800 hover:bg-green-300">Surgery</button>
+                <button id="view-obgy" class="px-4 py-2 bg-blue-200 text-gray-800 hover:bg-blue-300">OBGY</button>
+                <button id="view-community" class="px-4 py-2 bg-yellow-200 text-gray-800 hover:bg-yellow-300">Community</button>
+                <button id="view-misc" class="px-4 py-2 bg-purple-200 text-gray-800 rounded-r-md hover:bg-purple-300">Misc</button>
+            </div>
+            <div class="schedule-container">
+                <div class="flex mb-4 overflow-x-auto">
+                    <div class="flex flex-col">
+                        <div class="week-cell batch-cell">Week</div>
+                        <div id="subgroups"></div>
+                    </div>
+                    <div id="schedule-grid" class="flex">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
                 </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Phase</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="student-table-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Student rows will be inserted here by JavaScript -->
-                    </tbody>
+            <div id="tooltip" class="tooltip"></div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">Medicine (12 Weeks)</h3>
+                <div class="legend-item medicine"></div> Medicine
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Code</th>
+                        <th class="border p-1 text-sm">Subject</th>
+                        <th class="border p-1 text-sm">Duration</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">GM</td>
+                        <td class="border p-1 text-sm">General Medicine</td>
+                        <td class="border p-1 text-sm">6 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">PY</td>
+                        <td class="border p-1 text-sm">Psychiatry</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">CA</td>
+                        <td class="border p-1 text-sm">Casualty</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">EN</td>
+                        <td class="border p-1 text-sm">ENT</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
                 </table>
             </div>
-            <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 sm:px-6">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-700">
-                        Showing <span id="showing-count">100</span> students
-                    </div>
-                    <div class="flex-1 flex justify-center md:hidden">
-                        <button class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                            More
-                        </button>
-                    </div>
-                    <div class="hidden md:flex">
-                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                <span class="sr-only">Previous</span>
-                                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                </svg>
-                            </a>
-                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                1
-                            </a>
-                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                2
-                            </a>
-                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                3
-                            </a>
-                            <a href="#" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                <span class="sr-only">Next</span>
-                                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                                </svg>
-                            </a>
-                        </nav>
-                    </div>
-                </div>
+            
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">Surgery (12 Weeks)</h3>
+                <div class="legend-item surgery"></div> Surgery
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Code</th>
+                        <th class="border p-1 text-sm">Subject</th>
+                        <th class="border p-1 text-sm">Duration</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">GS</td>
+                        <td class="border p-1 text-sm">General Surgery</td>
+                        <td class="border p-1 text-sm">6 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">AN</td>
+                        <td class="border p-1 text-sm">Anaesthesia</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">OR</td>
+                        <td class="border p-1 text-sm">Orthopedics</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">OP</td>
+                        <td class="border p-1 text-sm">Ophthalmology</td>
+                        <td class="border p-1 text-sm">2 weeks</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">OBGY (12 Weeks)</h3>
+                <div class="legend-item obgy"></div> OBGY
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Code</th>
+                        <th class="border p-1 text-sm">Subject</th>
+                        <th class="border p-1 text-sm">Duration</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">OB</td>
+                        <td class="border p-1 text-sm">OBGY</td>
+                        <td class="border p-1 text-sm">6 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">PE</td>
+                        <td class="border p-1 text-sm">Paediatrics</td>
+                        <td class="border p-1 text-sm">3 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">RM</td>
+                        <td class="border p-1 text-sm">Respiratory Medicine</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">RA</td>
+                        <td class="border p-1 text-sm">Radiology</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">DE</td>
+                        <td class="border p-1 text-sm">Dermatology</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">Community Medicine (12 Weeks)</h3>
+                <div class="legend-item community"></div> Community Medicine
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Code</th>
+                        <th class="border p-1 text-sm">Subject</th>
+                        <th class="border p-1 text-sm">Duration</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">CH</td>
+                        <td class="border p-1 text-sm">CHC</td>
+                        <td class="border p-1 text-sm">3 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">PH</td>
+                        <td class="border p-1 text-sm">PHC</td>
+                        <td class="border p-1 text-sm">3 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">UH</td>
+                        <td class="border p-1 text-sm">UHC</td>
+                        <td class="border p-1 text-sm">3 weeks</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">RH</td>
+                        <td class="border p-1 text-sm">RHC</td>
+                        <td class="border p-1 text-sm">3 weeks</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">Miscellaneous (4 Weeks)</h3>
+                <div class="legend-item misc"></div> Miscellaneous
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Code</th>
+                        <th class="border p-1 text-sm">Subject</th>
+                        <th class="border p-1 text-sm">Duration</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">GY</td>
+                        <td class="border p-1 text-sm">Gynecology (separate)</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">LM</td>
+                        <td class="border p-1 text-sm">Lab Medicine</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">FM</td>
+                        <td class="border p-1 text-sm">Forensic Medicine</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">YO</td>
+                        <td class="border p-1 text-sm">Yoga</td>
+                        <td class="border p-1 text-sm">1 week</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="border rounded-md p-4">
+                <h3 class="text-lg font-bold mb-2">Batch Information</h3>
+                <table class="w-full mt-2">
+                    <tr>
+                        <th class="border p-1 text-sm">Batch</th>
+                        <th class="border p-1 text-sm">Rotation Sequence</th>
+                        <th class="border p-1 text-sm">Members</th>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">A</td>
+                        <td class="border p-1 text-sm">M → S → O → C → MIS</td>
+                        <td class="border p-1 text-sm">34</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">B</td>
+                        <td class="border p-1 text-sm">S → O → C → M → MIS</td>
+                        <td class="border p-1 text-sm">34</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">C</td>
+                        <td class="border p-1 text-sm">O → C → M → S → MIS</td>
+                        <td class="border p-1 text-sm">34</td>
+                    </tr>
+                    <tr>
+                        <td class="border p-1 text-sm">D</td>
+                        <td class="border p-1 text-sm">C → M → S → O → MIS</td>
+                        <td class="border p-1 text-sm">34</td>
+                    </tr>
+                </table>
             </div>
         </div>
-    </main>
+    </div>
 
     <script>
-        $(document).ready(function() {
-            // Generate dummy student data
-            const students = [];
-            const phases = ['A', 'B', 'C', 'D'];
-            const firstNames = ['John', 'Jane', 'Michael', 'Emily', 'David', 'Sarah', 'James', 'Emma', 'Robert', 'Olivia', 'William', 'Sophia', 'Joseph', 'Ava', 'Thomas', 'Isabella', 'Charles', 'Mia', 'Daniel', 'Charlotte', 'Matthew', 'Amelia', 'Anthony', 'Harper', 'Mark', 'Evelyn'];
-            const lastNames = ['Smith', 'Johnson', 'Williams', 'Jones', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Rodriguez', 'Lewis', 'Lee', 'Walker', 'Hall'];
-            
-            // Create 100 students, 25 in each phase
-            for (let i = 0; i < 100; i++) {
-                const phaseIndex = Math.floor(i / 25);
-                const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-                const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-                
-                students.push({
-                    id: 'STU' + (1000 + i),
-                    name: firstName + ' ' + lastName,
-                    currentPhase: phases[phaseIndex],
-                    completedPhases: [],
-                    status: 'In Progress'
-                });
+        // Define the phase structure - this is the modular part that defines each phase
+        const phaseStructure = {
+            medicine: {
+                name: "Medicine",
+                duration: 12,
+                class: "medicine",
+                subphases: [
+                    { code: "GM", name: "General Medicine", duration: 6 },
+                    { code: "PY", name: "Psychiatry", duration: 2 },
+                    { code: "CA", name: "Casualty", duration: 2 },
+                    { code: "EN", name: "ENT", duration: 2 }
+                ]
+            },
+            surgery: {
+                name: "Surgery",
+                duration: 12,
+                class: "surgery",
+                subphases: [
+                    { code: "GS", name: "General Surgery", duration: 6 },
+                    { code: "AN", name: "Anaesthesia", duration: 2 },
+                    { code: "OR", name: "Orthopedics", duration: 2 },
+                    { code: "OP", name: "Ophthalmology", duration: 2 }
+                ]
+            },
+            obgy: {
+                name: "OBGY",
+                duration: 12,
+                class: "obgy",
+                subphases: [
+                    { code: "OB", name: "OBGY", duration: 6 },
+                    { code: "PE", name: "Paediatrics", duration: 3 },
+                    { code: "RM", name: "Respiratory Medicine", duration: 1 },
+                    { code: "RA", name: "Radiology", duration: 1 },
+                    { code: "DE", name: "Dermatology", duration: 1 }
+                ]
+            },
+            community: {
+                name: "Community Medicine",
+                duration: 12,
+                class: "community",
+                subphases: [
+                    { code: "CH", name: "CHC", duration: 3 },
+                    { code: "PH", name: "PHC", duration: 3 },
+                    { code: "UH", name: "UHC", duration: 3 },
+                    { code: "RH", name: "RHC", duration: 3 }
+                ]
+            },
+            misc: {
+                name: "Miscellaneous",
+                duration: 4,
+                class: "misc",
+                subphases: [
+                    { code: "GY", name: "Gynecology", duration: 1 },
+                    { code: "LM", name: "Lab Medicine", duration: 1 },
+                    { code: "FM", name: "Forensic Medicine", duration: 1 },
+                    { code: "YO", name: "Yoga", duration: 1 }
+                ]
             }
+        };
+
+        // Define the batch rotation sequences
+        const batchSequences = {
+            A: ["medicine", "surgery", "obgy", "community", "misc"],
+            B: ["surgery", "obgy", "community", "medicine", "misc"],
+            C: ["obgy", "community", "medicine", "surgery", "misc"],
+            D: ["community", "medicine", "surgery", "obgy", "misc"]
+        };
+
+        // Function to get the phase for a given week and batch
+        function getPhaseForWeek(week, batch) {
+            const sequence = batchSequences[batch];
             
-            // Function to render the progress tracker
-            function renderProgressTracker(student) {
-                const phases = ['A', 'B', 'C', 'D'];
-                const currentPhaseIndex = phases.indexOf(student.currentPhase);
-                
-                let html = '<div class="flex items-center">';
-                
-                phases.forEach((phase, index) => {
-                    // Determine step class
-                    let stepClass = 'progress-step-inactive';
-                    if (student.completedPhases.includes(phase)) {
-                        stepClass = 'progress-step-completed';
-                    } else if (phase === student.currentPhase) {
-                        stepClass = 'progress-step-active';
+            if (week <= 12) {
+                return sequence[0];
+            } else if (week <= 24) {
+                return sequence[1];
+            } else if (week <= 36) {
+                return sequence[2];
+            } else if (week <= 48) {
+                return sequence[3];
+            } else {
+                return sequence[4];
+            }
+        }
+
+        // Function to get the relative week within a phase
+        function getRelativeWeek(week) {
+            if (week <= 12) {
+                return week;
+            } else if (week <= 24) {
+                return week - 12;
+            } else if (week <= 36) {
+                return week - 24;
+            } else if (week <= 48) {
+                return week - 36;
+            } else {
+                return week - 48;
+            }
+        }
+
+        // Function to get the posting for a given week, subgroup, and batch
+        function getPostingForWeek(week, subgroup, batch) {
+            const phase = getPhaseForWeek(week, batch);
+            const relativeWeek = getRelativeWeek(week);
+            const phaseInfo = phaseStructure[phase];
+            
+            // Get subgroup number (1-4)
+            const subgroupNum = parseInt(subgroup.charAt(1));
+            
+            // Medicine Phase Logic
+            if (phase === "medicine") {
+                if (subgroupNum === 1) {
+                    if (relativeWeek <= 6) {
+                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                    } else if (relativeWeek <= 8) {
+                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [7, 8] };
+                    } else if (relativeWeek <= 10) {
+                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [9, 10] };
+                    } else {
+                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [11, 12] };
                     }
-                    
-                    // Add step
-                    html += `<div class="progress-step ${stepClass}">${phase}</div>`;
-                    
-                    // Add connecting line (except after the last step)
-                    if (index < phases.length - 1) {
-                        let lineClass = 'progress-line';
-                        if (index < currentPhaseIndex || student.completedPhases.includes(phase)) {
-                            lineClass += ' progress-line-active';
-                        }
-                        html += `<div class="${lineClass}"></div>`;
+                } else if (subgroupNum === 2) {
+                    if (relativeWeek <= 2) {
+                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
                     }
-                });
-                
-                html += '</div>';
-                return html;
+                } else if (subgroupNum === 3) {
+                    if (relativeWeek <= 2) {
+                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                } else if (subgroupNum === 4) {
+                    if (relativeWeek <= 2) {
+                        return { code: "EN", phase, name: "ENT", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "PY", phase, name: "Psychiatry", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "CA", phase, name: "Casualty", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GM", phase, name: "General Medicine", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                }
             }
             
-            // Function to render the student table
-            function renderStudentTable(filteredStudents = null) {
-                const studentsToRender = filteredStudents || students;
-                let html = '';
+            // Surgery Phase Logic
+            else if (phase === "surgery") {
+                if (subgroupNum === 1) {
+                    if (relativeWeek <= 6) {
+                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                    } else if (relativeWeek <= 8) {
+                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [7, 8] };
+                    } else if (relativeWeek <= 10) {
+                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [9, 10] };
+                    } else {
+                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [11, 12] };
+                    }
+                } else if (subgroupNum === 2) {
+                    if (relativeWeek <= 2) {
+                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                } else if (subgroupNum === 3) {
+                    if (relativeWeek <= 2) {
+                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                } else if (subgroupNum === 4) {
+                    if (relativeWeek <= 2) {
+                        return { code: "OP", phase, name: "Ophthalmology", duration: 2, weeks: [1, 2] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "AN", phase, name: "Anaesthesia", duration: 2, weeks: [3, 4] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "OR", phase, name: "Orthopedics", duration: 2, weeks: [5, 6] };
+                    } else {
+                        return { code: "GS", phase, name: "General Surgery", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                }
+            }
+            
+            // OBGY Phase Logic
+            else if (phase === "obgy") {
+                if (subgroupNum === 1) {
+                    if (relativeWeek <= 6) {
+                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [1, 2, 3, 4, 5, 6] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [7, 8, 9] };
+                    } else if (relativeWeek <= 10) {
+                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [10] };
+                    } else if (relativeWeek <= 11) {
+                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [11] };
+                    } else {
+                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [12] };
+                    }
+                } else if (subgroupNum === 2) {
+                    if (relativeWeek <= 3) {
+                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [1, 2, 3] };
+                    } else if (relativeWeek <= 4) {
+                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [4] };
+                    } else if (relativeWeek <= 5) {
+                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [5] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [6] };
+                    } else {
+                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                } else if (subgroupNum === 3) {
+                    if (relativeWeek <= 1) {
+                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [1] };
+                    } else if (relativeWeek <= 2) {
+                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [2] };
+                    } else if (relativeWeek <= 3) {
+                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [3] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [4, 5, 6] };
+                    } else {
+                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [7, 8, 9, 10, 11, 12] };
+                    }
+                } else if (subgroupNum === 4) {
+                    if (relativeWeek <= 1) {
+                        return { code: "DE", phase, name: "Dermatology", duration: 1, weeks: [1] };
+                    } else if (relativeWeek <= 2) {
+                        return { code: "RM", phase, name: "Respiratory Medicine", duration: 1, weeks: [2] };
+                    } else if (relativeWeek <= 3) {
+                        return { code: "RA", phase, name: "Radiology", duration: 1, weeks: [3] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "OB", phase, name: "OBGY", duration: 6, weeks: [4, 5, 6, 7, 8, 9] };
+                    } else {
+                        return { code: "PE", phase, name: "Paediatrics", duration: 3, weeks: [10, 11, 12] };
+                    }
+                }
+            }
+            
+            // Community Medicine Phase Logic
+            else if (phase === "community") {
+                if (subgroupNum === 1) {
+                    if (relativeWeek <= 3) {
+                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [1, 2, 3] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [4, 5, 6] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [7, 8, 9] };
+                    } else {
+                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [10, 11, 12] };
+                    }
+                } else if (subgroupNum === 2) {
+                    if (relativeWeek <= 3) {
+                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [1, 2, 3] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [4, 5, 6] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [7, 8, 9] };
+                    } else {
+                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [10, 11, 12] };
+                    }
+                } else if (subgroupNum === 3) {
+                    if (relativeWeek <= 3) {
+                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [1, 2, 3] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [4, 5, 6] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [7, 8, 9] };
+                    } else {
+                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [10, 11, 12] };
+                    }
+                } else if (subgroupNum === 4) {
+                    if (relativeWeek <= 3) {
+                        return { code: "RH", phase, name: "RHC", duration: 3, weeks: [1, 2, 3] };
+                    } else if (relativeWeek <= 6) {
+                        return { code: "CH", phase, name: "CHC", duration: 3, weeks: [4, 5, 6] };
+                    } else if (relativeWeek <= 9) {
+                        return { code: "PH", phase, name: "PHC", duration: 3, weeks: [7, 8, 9] };
+                    } else {
+                        return { code: "UH", phase, name: "UHC", duration: 3, weeks: [10, 11, 12] };
+                    }
+                }
+            }
+            
+            // Miscellaneous Phase Logic
+            else if (phase === "misc") {
+                if (subgroupNum === 1) {
+                    if (relativeWeek === 1) {
+                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [1] };
+                    } else if (relativeWeek === 2) {
+                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [2] };
+                    } else if (relativeWeek === 3) {
+                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [3] };
+                    } else {
+                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [4] };
+                    }
+                } else if (subgroupNum === 2) {
+                    if (relativeWeek === 1) {
+                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [1] };
+                    } else if (relativeWeek === 2) {
+                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [2] };
+                    } else if (relativeWeek === 3) {
+                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [3] };
+                    } else {
+                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [4] };
+                    }
+                } else if (subgroupNum === 3) {
+                    if (relativeWeek === 1) {
+                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [1] };
+                    } else if (relativeWeek === 2) {
+                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [2] };
+                    } else if (relativeWeek === 3) {
+                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [3] };
+                    } else {
+                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [4] };
+                    }
+                } else if (subgroupNum === 4) {
+                    if (relativeWeek === 1) {
+                        return { code: "YO", phase, name: "Yoga", duration: 1, weeks: [1] };
+                    } else if (relativeWeek === 2) {
+                        return { code: "GY", phase, name: "Gynecology", duration: 1, weeks: [2] };
+                    } else if (relativeWeek === 3) {
+                        return { code: "LM", phase, name: "Lab Medicine", duration: 1, weeks: [3] };
+                    } else {
+                        return { code: "FM", phase, name: "Forensic Medicine", duration: 1, weeks: [4] };
+                    }
+                }
+            }
+            
+            return { code: "", phase: "", name: "", duration: 0, weeks: [] };
+        }
+        
+        // Function to update the current week schedule
+        function updateCurrentWeekSchedule() {
+            const week = parseInt($("#week-select").val());
+            const batch = $("#batch-select").val();
+            
+            const subgroups = [`${batch}1`, `${batch}2`, `${batch}3`, `${batch}4`];
+            
+            let html = "";
+            
+            for (const subgroup of subgroups) {
+                const posting = getPostingForWeek(week, subgroup, batch);
+                const phaseClass = posting.phase;
                 
-                studentsToRender.forEach(student => {
-                    const phaseClass = student.status === 'Completed' ? 'completed' : `phase-${student.currentPhase.toLowerCase()}`;
+                html += `
+                    <tr>
+                        <td class="border p-2">${subgroup}</td>
+                        <td class="border p-2 ${phaseClass}">${posting.code}</td>
+                        <td class="border p-2">${posting.name}</td>
+                        <td class="border p-2">${posting.duration} week${posting.duration > 1 ? 's' : ''}</td>
+                        <td class="border p-2">${subgroup === batch + '1' ? '8' : subgroup === batch + '2' ? '9' : subgroup === batch + '3' ? '8' : '9'}</td>
+                    </tr>
+                `;
+            }
+            
+            $("#current-week-body").html(html);
+            
+            // Update current phase info
+            const phase = getPhaseForWeek(week, batch);
+            const relativeWeek = getRelativeWeek(week);
+            const phaseName = phaseStructure[phase].name;
+            const phaseDuration = phaseStructure[phase].duration;
+            
+            $("#current-phase-info").html(`Phase: <span class="font-bold">${phaseName} (Week ${relativeWeek} of ${phaseDuration})</span>`);
+            $("#total-progress").html(`Overall Progress: <span class="font-bold">Week ${week} of 52</span>`);
+        }
+        
+        // Function to initialize the schedule grid
+        function initializeScheduleGrid() {
+            const batch = $("#batch-select").val();
+            
+            // Initialize subgroups
+            let subgroupsHtml = "";
+            for (let i = 1; i <= 4; i++) {
+                subgroupsHtml += `<div class="week-cell batch-cell">${batch}${i}</div>`;
+            }
+            $("#subgroups").html(subgroupsHtml);
+            
+            // Initialize schedule grid
+            let gridHtml = "";
+            
+            for (let week = 1; week <= 52; week++) {
+                let columnHtml = `<div class="flex flex-col">
+                    <div class="week-cell header-cell">${week}</div>`;
+                
+                for (let i = 1; i <= 4; i++) {
+                    const subgroup = `${batch}${i}`;
+                    const posting = getPostingForWeek(week, subgroup, batch);
+                    const phaseClass = posting.phase;
                     
-                    html += `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.id}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${student.name}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="phase-badge ${phaseClass}">${student.status === 'Completed' ? 'Completed' : 'Phase ' + student.currentPhase}</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                ${renderProgressTracker(student)}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${student.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                                    ${student.status}
-                                </span>
-                            </td>
-                        </tr>
-                    `;
-                });
+                    columnHtml += `<div class="week-cell ${phaseClass}" data-week="${week}" data-subgroup="${subgroup}" data-posting="${posting.code}" data-phase="${posting.phase}" data-name="${posting.name}">${posting.code}</div>`;
+                }
                 
-                $('#student-table-body').html(html);
-                $('#showing-count').text(studentsToRender.length);
+                columnHtml += `</div>`;
+                gridHtml += columnHtml;
             }
             
-            // Initial render
-            renderStudentTable();
+            $("#schedule-grid").html(gridHtml);
             
-            // Handle rotation button click
-            $('#rotate-btn').click(function() {
-                // Rotate students to next phase
-                students.forEach(student => {
-                    if (student.status !== 'Completed') {
-                        // Add current phase to completed phases
-                        if (!student.completedPhases.includes(student.currentPhase)) {
-                            student.completedPhases.push(student.currentPhase);
-                        }
+            // Highlight the current week
+            highlightCurrentWeek();
+            
+            // Add tooltip functionality
+            $(".week-cell").hover(
+                function(e) {
+                    const posting = $(this).data("posting");
+                    const phase = $(this).data("phase");
+                    const name = $(this).data("name");
+                    const subgroup = $(this).data("subgroup");
+                    const week = $(this).data("week");
+                    
+                    if (posting && phase && name) {
+                        $("#tooltip").html(`
+                            <div>Week: ${week}</div>
+                            <div>Subgroup: ${subgroup}</div>
+                            <div>Phase: ${phaseStructure[phase].name}</div>
+                            <div>Posting: ${posting} - ${name}</div>
+                        `);
                         
-                        // Move to next phase
-                        const phases = ['A', 'B', 'C', 'D'];
-                        const currentIndex = phases.indexOf(student.currentPhase);
-                        const nextIndex = (currentIndex + 1) % phases.length;
-                        
-                        // If we've completed a full cycle
-                        if (nextIndex === 0 && student.completedPhases.length >= phases.length) {
-                            student.status = 'Completed';
-                        } else {
-                            student.currentPhase = phases[nextIndex];
-                        }
+                        $("#tooltip").css({
+                            top: e.pageY + 10,
+                            left: e.pageX + 10,
+                            display: "block"
+                        });
                     }
+                },
+                function() {
+                    $("#tooltip").css("display", "none");
+                }
+            );
+            
+            $(".week-cell").mousemove(function(e) {
+                $("#tooltip").css({
+                    top: e.pageY + 10,
+                    left: e.pageX + 10
                 });
-                
-                // Update the week selector
-                const currentWeek = parseInt($('#week-select').val());
-                const nextWeek = currentWeek < 13 ? currentWeek + 1 : 1;
-                $('#week-select').val(nextWeek);
-                
-                // Re-render the table
-                renderStudentTable();
-                
-                // Update phase counts
-                updatePhaseCounts();
             });
+        }
+        
+        // Function to highlight the current week
+        function highlightCurrentWeek() {
+            const week = parseInt($("#week-select").val());
             
-            // Handle search input
-            $('#search-input').on('input', function() {
-                const searchTerm = $(this).val().toLowerCase();
-                
-                if (searchTerm.trim() === '') {
-                    renderStudentTable();
+            // Remove highlight from all cells
+            $(".week-cell").removeClass("highlight");
+            
+            // Add highlight to current week cells
+            $(`.week-cell[data-week="${week}"]`).addClass("highlight");
+        }
+        
+        // Function to filter the schedule grid by phase
+        function filterScheduleByPhase(phase) {
+            if (phase === "all") {
+                $(".week-cell").show();
+                return;
+            }
+            
+            $(".week-cell").each(function() {
+                const cellPhase = $(this).data("phase");
+                if (cellPhase === phase || !cellPhase) {
+                    $(this).show();
                 } else {
-                    const filteredStudents = students.filter(student => 
-                        student.id.toLowerCase().includes(searchTerm) || 
-                        student.name.toLowerCase().includes(searchTerm)
-                    );
-                    renderStudentTable(filteredStudents);
+                    $(this).hide();
                 }
             });
+        }
+        
+        // Initialize the page
+        $(document).ready(function() {
+            // Initialize the schedule grid
+            initializeScheduleGrid();
             
-            // Function to update phase counts
-            function updatePhaseCounts() {
-                const phaseCounts = {
-                    'A': 0,
-                    'B': 0,
-                    'C': 0,
-                    'D': 0,
-                    'Completed': 0
-                };
-                
-                students.forEach(student => {
-                    if (student.status === 'Completed') {
-                        phaseCounts['Completed']++;
-                    } else {
-                        phaseCounts[student.currentPhase]++;
-                    }
-                });
-                
-                // Update the phase badges
-                $('.phase-badge').eq(0).text(`${phaseCounts['A']} Students`);
-                $('.phase-badge').eq(1).text(`${phaseCounts['B']} Students`);
-                $('.phase-badge').eq(2).text(`${phaseCounts['C']} Students`);
-                $('.phase-badge').eq(3).text(`${phaseCounts['D']} Students`);
-            }
+            // Initialize the current week schedule
+            updateCurrentWeekSchedule();
             
             // Handle batch selection change
-            $('#batch-select').change(function() {
-                // In a real application, this would load different student data
-                // For this demo, we'll just reset the current batch
-                resetStudentData();
-                renderStudentTable();
-                updatePhaseCounts();
+            $("#batch-select").change(function() {
+                initializeScheduleGrid();
+                updateCurrentWeekSchedule();
             });
             
             // Handle week selection change
-            $('#week-select').change(function() {
-                // In a real application, this would show the state at a specific week
-                // For this demo, we'll just simulate rotations based on the week number
-                resetStudentData();
+            $("#week-select").change(function() {
+                const week = parseInt($(this).val());
                 
-                const selectedWeek = parseInt($(this).val());
-                const rotations = Math.floor((selectedWeek - 1) / 13);
-                
-                // Apply rotations
-                for (let i = 0; i < rotations; i++) {
-                    $('#rotate-btn').click();
+                // Validate week range
+                if (week < 1) {
+                    $(this).val(1);
+                } else if (week > 52) {
+                    $(this).val(52);
                 }
                 
-                renderStudentTable();
-                updatePhaseCounts();
+                highlightCurrentWeek();
+                updateCurrentWeekSchedule();
             });
             
-            // Function to reset student data to initial state
-            function resetStudentData() {
-                students.forEach((student, index) => {
-                    const phaseIndex = Math.floor(index / 25);
-                    student.currentPhase = phases[phaseIndex];
-                    student.completedPhases = [];
-                    student.status = 'In Progress';
-                });
+            // Handle phase selection change
+            $("#phase-select").change(function() {
+                const week = parseInt($(this).val());
+                $("#week-select").val(week).change();
+            });
+            
+            // Handle previous week button
+            $("#prev-week").click(function() {
+                const week = parseInt($("#week-select").val());
+                if (week > 1) {
+                    $("#week-select").val(week - 1).change();
+                }
+            });
+            
+            // Handle next week button
+            $("#next-week").click(function() {
+                const week = parseInt($("#week-select").val());
+                if (week < 52) {
+                    $("#week-select").val(week + 1).change();
+                }
+            });
+            
+            // Handle reset button
+            $("#reset-btn").click(function() {
+                $("#week-select").val(1).change();
+                $("#batch-select").val("A").change();
+                stopSimulation();
+                filterScheduleByPhase("all");
+                $("#view-all").addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-medicine, #view-surgery, #view-obgy, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            // Handle phase filter buttons
+            $("#view-all").click(function() {
+                filterScheduleByPhase("all");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-medicine, #view-surgery, #view-obgy, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            $("#view-medicine").click(function() {
+                filterScheduleByPhase("medicine");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-all, #view-surgery, #view-obgy, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            $("#view-surgery").click(function() {
+                filterScheduleByPhase("surgery");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-all, #view-medicine, #view-obgy, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            $("#view-obgy").click(function() {
+                filterScheduleByPhase("obgy");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-all, #view-medicine, #view-surgery, #view-community, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            $("#view-community").click(function() {
+                filterScheduleByPhase("community");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-all, #view-medicine, #view-surgery, #view-obgy, #view-misc").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            $("#view-misc").click(function() {
+                filterScheduleByPhase("misc");
+                $(this).addClass("bg-blue-600 text-white").removeClass("bg-gray-200 text-gray-800");
+                $("#view-all, #view-medicine, #view-surgery, #view-obgy, #view-community").removeClass("bg-blue-600 text-white").addClass("bg-gray-200 text-gray-800");
+            });
+            
+            // Simulation variables
+            let simulationInterval = null;
+            
+            // Handle simulation button
+            $("#simulate-btn").click(function() {
+                if (!simulationInterval) {
+                    startSimulation();
+                }
+            });
+            
+            // Handle stop simulation button
+            $("#stop-simulation").click(function() {
+                stopSimulation();
+            });
+            
+            // Function to start simulation
+            function startSimulation() {
+                $("#simulate-btn").hide();
+                $("#stop-simulation").show();
+                
+                simulationInterval = setInterval(function() {
+                    const week = parseInt($("#week-select").val());
+                    if (week < 52) {
+                        $("#week-select").val(week + 1).change();
+                    } else {
+                        stopSimulation();
+                    }
+                }, 1000);
+            }
+            
+            // Function to stop simulation
+            function stopSimulation() {
+                if (simulationInterval) {
+                    clearInterval(simulationInterval);
+                    simulationInterval = null;
+                }
+                
+                $("#simulate-btn").show();
+                $("#stop-simulation").hide();
             }
         });
     </script>
